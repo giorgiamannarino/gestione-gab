@@ -67,7 +67,7 @@
 </script>
 
 <div class="restore">
-  <input bind:this={input} type="file" accept=".json,application/json" class="visually-hidden" onchange={onFile} aria-label="Scegli il file di backup" />
+  <input bind:this={input} type="file" class="visually-hidden" onchange={onFile} aria-label="Scegli il file di backup" />
   <Button variant="secondary" block onclick={() => input?.click()}><FileUp size={18} /> Scegli il file di backup</Button>
 
   {#if needsPassword && !ready}

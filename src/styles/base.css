@@ -27,10 +27,11 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  overflow-x: hidden;
 }
 
+/* `clip` e non `hidden`: su iOS overflow-x: hidden su html e body può bloccare lo scorrimento. */
 body {
+  overflow-x: clip;
   font-family: var(--font-sans);
   font-size: var(--fs-body);
   font-weight: var(--fw-regular);
@@ -38,7 +39,6 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: none;
 }
 
 h1,

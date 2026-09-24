@@ -30,6 +30,26 @@ test('onboarding da zero, allineamento del saldo', async ({ page }) => {
   await expect(page.getByLabel('1.250,40 euro').first()).toBeVisible();
 });
 
+test('parti da zero con il file di configurazione, poi prosegui senza rettifiche', async ({ page }) => {
+  const config = {
+    formato: 'conti-config', versione: 1,
+    gruppi: [{ id: 'banca', nome: 'Banca' }, { id: 'app', nome: 'App' }],
+    pocket: [
+      { id: 'conto', nome: 'Conto', gruppo: 'banca', ruolo: 'main' },
+      { id: 'svago', nome: 'Svago', gruppo: 'app', revolut: true },
+      { id: 'monete', nome: 'Monete', gruppo: 'app', revolut: true, ruolo: 'savings' },
+    ],
+  };
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Parti da zero' }).click();
+  await page.locator('input[type=file]').setInputFiles({ name: 'config-iniziale.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(config)) });
+  await expect(page.getByText('config-iniziale.json', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Continua' }).click();
+  await expect(page.getByLabel('Saldo reale di Svago')).toBeVisible();
+  await page.getByRole('button', { name: 'Continua: i saldi sono giusti' }).click();
+  await expect(page.getByRole('heading', { name: 'Mettila nella schermata Home' })).toBeVisible();
+});
+
 test('uscita Revolut con arrotondamento, annulla, piano, statistiche', async ({ page }) => {
   await restoreExample(page);
 

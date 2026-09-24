@@ -178,7 +178,15 @@
     border-radius: 50%;
     color: var(--text-3);
   }
+  .grab,
+  .head,
+  .footer {
+    flex: none;
+  }
   .content {
+    /* min-height: 0 lascia restringere il contenuto, così scorre dentro il pannello. */
+    min-height: 0;
+    flex: 1 1 auto;
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: var(--sp-2) var(--sp-5) var(--sp-4);

@@ -191,7 +191,7 @@
         <FileJson size={22} strokeWidth={1.75} />
         <span class="grow"><strong>Configurazione</strong><span class="c-3 small">{configName || `config-iniziale.json${mode === 'zero' ? ' (facoltativa)' : ''}`}</span></span>
         {#if configName}<Check size={18} />{/if}
-        <input type="file" accept=".json,application/json" class="visually-hidden" onchange={onConfig} />
+        <input type="file" class="visually-hidden" onchange={onConfig} />
       </label>
     </div>
 
@@ -227,7 +227,7 @@
   {:else if step === 'align'}
     <h1 class="t-title-2">Allinea i saldi</h1>
     <p class="c-2">Apri le app di Intesa, Generali e Revolut e scrivi il saldo reale di ogni pocket. Per ogni differenza creo una rettifica: la storia resta fedele, i saldi di partenza sono quelli veri.</p>
-    <Card><AlignBalances cta="Allinea e continua" ondone={() => (step = 'install')} /></Card>
+    <Card><AlignBalances cta="Allinea e continua" allowEmpty ondone={() => (step = 'install')} /></Card>
     <Button variant="ghost" onclick={() => (step = 'install')}>Salta per ora</Button>
 
   {:else if step === 'install'}

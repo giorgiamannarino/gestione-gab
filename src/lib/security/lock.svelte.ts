@@ -28,6 +28,9 @@ class LockStore {
     this.locked = this.enabled;
     document.addEventListener('visibilitychange', () => this.onVisibility());
     window.addEventListener('pagehide', () => (this.hidden = true));
+    // Al ritorno la copertura va sempre tolta, anche se il browser non segnala `visibilitychange`.
+    window.addEventListener('pageshow', () => this.onVisibility());
+    window.addEventListener('focus', () => document.visibilityState === 'visible' && (this.hidden = false));
   }
 
   private onVisibility() {

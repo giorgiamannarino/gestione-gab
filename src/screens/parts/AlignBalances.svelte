@@ -11,8 +11,10 @@
   interface Props {
     ondone?: (count: number) => void;
     cta?: string;
+    /** Nell'onboarding si può proseguire anche senza rettifiche. */
+    allowEmpty?: boolean;
   }
-  let { ondone, cta = 'Allinea i saldi' }: Props = $props();
+  let { ondone, cta = 'Allinea i saldi', allowEmpty = false }: Props = $props();
 
   let values = $state<Record<Id, string>>({});
   let busy = $state(false);
@@ -25,6 +27,7 @@
   );
 
   async function apply() {
+    if (changes.length === 0) return ondone?.(0);
     busy = true;
     const n = await app.adjust(new Map(changes.map((c) => [c.p.id, c.real])));
     values = {};
@@ -56,8 +59,8 @@
     </div>
   {/each}
   <p class="hint">Lascia vuoto un pocket se il saldo è già giusto.</p>
-  <Button size="lg" block disabled={busy || changes.length === 0} loading={busy} onclick={apply}>
-    {changes.length ? `${cta} (${changes.length})` : cta}
+  <Button size="lg" block disabled={busy || (!allowEmpty && changes.length === 0) || Object.keys(errors).length > 0} loading={busy} onclick={apply}>
+    {changes.length ? `${cta} (${changes.length})` : allowEmpty ? 'Continua: i saldi sono giusti' : cta}
   </Button>
 </div>
 
