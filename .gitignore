@@ -1,0 +1,24 @@
+# ─── Dati reali: non devono MAI finire nel repository ───
+*.xlsx
+*.xls
+*.xlsm
+*.ods
+*.csv
+config-iniziale*.json
+*-backup-*.json
+backup*.json
+local/
+private/
+screenshots/
+
+# ─── Build e strumenti ───
+.claude/
+node_modules/
+dist/
+dev-dist/
+coverage/
+playwright-report/
+test-results/
+.env*
+.DS_Store
+Thumbs.db
