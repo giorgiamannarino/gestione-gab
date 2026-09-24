@@ -47,8 +47,8 @@ export function parseBackup(raw: unknown): BackupFile {
   if (version > BACKUP_VERSION) {
     throw new BackupError("Il backup è stato creato da una versione più recente dell'app. Aggiorna l'app e riprova.");
   }
-  let data = raw.data;
-  if (!isObj(data)) throw new BackupError('Il backup è incompleto.');
+  if (!isObj(raw.data)) throw new BackupError('Il backup è incompleto.');
+  let data: Record<string, unknown> = raw.data;
   for (let v = version; v < BACKUP_VERSION; v++) data = BACKUP_MIGRATIONS[v]!(data);
 
   const d = data as Record<string, unknown>;
