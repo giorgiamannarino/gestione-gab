@@ -15,11 +15,15 @@
   import TextField from '../ui/TextField.svelte';
 
   const key = $derived(app.period.key);
-  const salaryTx = $derived(app.txByKey(`salary:${key}`));
-  const salary = $derived(salaryTx ? salaryTx.legs[0]!.amount : 0);
+  const salaryTx = $derived(app.salaryTx);
+  const salary = $derived(salaryTx ? salaryTx.legs.reduce((a, l) => a + l.amount, 0) : 0);
   const plan = $derived(app.planFor(salary));
   const pocket = (id?: Id) => app.data.pockets.find((p) => p.id === id);
-  const done = (recurringId: Id) => !!app.txByKey(`plan:${recurringId}:${key}`);
+  const status = (l: { recurringId: Id; fromPocketId: Id; toPocketId?: Id }) => app.planStatus(l);
+  const done = (recurringId: Id) => {
+    const l = [...plan.revolut, ...plan.others].find((x) => x.recurringId === recurringId);
+    return l ? !!status(l) : !!app.txByKey(`plan:${recurringId}:${key}`);
+  };
 
   let salaryInput = $state('');
   let salaryError = $state('');
@@ -168,9 +172,10 @@
 </div>
 
 {#snippet check(l: { recurringId: Id; name: string; fromPocketId: Id; toPocketId?: Id; amount: number })}
-  {@const ok = done(l.recurringId)}
+  {@const st = status(l)}
+  {@const ok = !!st}
   {@const to = pocket(l.toPocketId)}
-  <button class="line check" class:ok onclick={() => app.togglePlanTransfer(l, app.today)} role="checkbox" aria-checked={ok}>
+  <button class="line check" class:ok disabled={st === 'manual'} title={st === 'manual' ? 'Già registrato con un giroconto' : undefined} onclick={() => app.togglePlanTransfer(l, app.today)} role="checkbox" aria-checked={ok}>
     <span class="tick" class:on={ok} aria-hidden="true">{#if ok}<Check size={14} strokeWidth={3} />{/if}</span>
     {#if to}<IconTile icon={icon(to.icon)} color={color(to.color)} size="sm" />{/if}
     <span class="lname">{l.name}</span>

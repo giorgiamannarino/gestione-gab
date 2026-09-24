@@ -141,9 +141,42 @@ class AppStore {
     });
   }
 
+  /**
+   * Stipendio del periodo: quello registrato dal piano oppure, se importato o inserito
+   * a mano, un'entrata sul conto principale con la categoria Stipendio.
+   */
+  get salaryTx(): Transaction | undefined {
+    const byKey = this.txByKey(`salary:${this.period.key}`);
+    if (byKey) return byKey;
+    const main = this.mainPocket?.id;
+    const cat = this.data.settings.salaryCategoryId;
+    if (!main || !cat) return undefined;
+    return this.data.transactions
+      .filter((t) => t.kind === 'income' && t.categoryId === cat && t.date >= this.period.start && t.date <= this.period.end && t.legs.some((l) => l.pocketId === main))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt))[0];
+  }
+
+  /**
+   * Una voce del piano è fatta se c'è il suo giroconto automatico, oppure un giroconto
+   * nel periodo (anche importato o manuale) dallo stesso pocket verso quello di destinazione.
+   */
+  planStatus(line: { recurringId: Id; fromPocketId: Id; toPocketId?: Id }): 'auto' | 'manual' | null {
+    if (this.txByKey(`plan:${line.recurringId}:${this.period.key}`)) return 'auto';
+    const found = this.data.transactions.some(
+      (t) =>
+        t.kind === 'transfer' &&
+        !t.autoKey?.startsWith('plan:') &&
+        t.date >= this.period.start &&
+        t.date <= this.period.end &&
+        t.legs.some((l) => l.pocketId === line.fromPocketId && l.amount < 0) &&
+        t.legs.some((l) => l.pocketId === line.toPocketId && l.amount > 0),
+    );
+    return found ? 'manual' : null;
+  }
+
   planFor(salary: number) {
     const main = this.mainPocket;
-    const salaryTx = this.txByKey(`salary:${this.period.key}`);
+    const salaryTx = this.salaryTx;
     const leftover = main && salaryTx ? this.balancesBeforeTx(salaryTx).get(main.id) ?? 0 : main ? this.balances.get(main.id) ?? 0 : 0;
     return buildPlan({
       salary, recurring: this.data.recurring, pockets: this.data.pockets, mainPocketId: main?.id ?? '',
@@ -186,6 +219,8 @@ class AppStore {
   /** Spunta/de-spunta una voce della checklist: registra o elimina il giroconto. */
   async togglePlanTransfer(line: { recurringId: Id; name: string; fromPocketId: Id; toPocketId?: Id; amount: number }, date: string): Promise<void> {
     const key = `plan:${line.recurringId}:${this.period.key}`;
+    // Già fatto con un giroconto importato o manuale: non si duplica.
+    if (this.planStatus(line) === 'manual') return;
     const existing = this.txByKey(key);
     if (existing) return this.deleteTx(existing.id, `${line.name}: spostamento annullato`);
     if (!line.toPocketId || line.amount <= 0) return;

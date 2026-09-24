@@ -36,7 +36,7 @@
 
   const budgets = $derived(app.data.recurring.filter((r) => r.active && r.kind === 'budget'));
   const due = $derived(dueDebits(app.data.recurring, app.data.transactions, p, app.today));
-  const salaryDone = $derived(!!app.txByKey(`salary:${p.key}`));
+  const salaryDone = $derived(!!app.salaryTx);
   const nextBill = $derived(app.data.settings.nextBill);
 
   const daysSinceBackup = $derived(app.backupInfo.lastAt ? Math.floor((Date.now() - app.backupInfo.lastAt) / 86_400_000) : null);
