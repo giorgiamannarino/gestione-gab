@@ -1,0 +1,184 @@
+/*
+ * Design token — direzione "Notte".
+ * Chiaro di default, scuro automatico da prefers-color-scheme.
+ * data-theme="light|dark" su <html> forza un tema (usato da test e screenshot).
+ *
+ * Tutti i colori di testo sono verificati AA sulle superfici in cui compaiono.
+ * La palette dei pocket (8 tinte, ordine fisso) è verificata per separazione
+ * tra vicini anche con daltonismo (protanopia/deuteranopia) e contrasto ≥ 3:1.
+ */
+
+:root {
+  /* ── Tipografia ── */
+  --font-sans: 'Manrope Variable', -apple-system, system-ui, sans-serif;
+  /* Scala in rem: 1rem segue la dimensione testo di sistema (vedi base.css). */
+  --fs-display: 2.75rem; /* 44 — patrimonio */
+  --fs-title-1: 1.75rem; /* 28 */
+  --fs-title-2: 1.375rem; /* 22 */
+  --fs-title-3: 1.0625rem; /* 17 */
+  --fs-body: 0.9375rem; /* 15 */
+  --fs-callout: 0.8125rem; /* 13 */
+  --fs-caption: 0.75rem; /* 12 */
+  --fs-micro: 0.6875rem; /* 11 */
+  --fw-regular: 500;
+  --fw-medium: 600;
+  --fw-bold: 700;
+  --fw-heavy: 800;
+
+  /* ── Spaziature (griglia 8, con mezzo passo) ── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 40px;
+  --sp-8: 48px;
+  --sp-9: 64px;
+  --gutter: 16px;
+
+  /* ── Raggi ── */
+  --r-xs: 8px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 22px;
+  --r-xl: 28px;
+  --r-full: 999px;
+
+  /* ── Tocco ── */
+  --tap: 44px;
+
+  /* ── Movimento ── */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+
+  /* ── Colori: chiaro ── */
+  color-scheme: light;
+  --bg: #f4f4f8;
+  --surface: #ffffff;
+  --surface-2: #f7f7fb;
+  --surface-3: #eeeef5;
+  --overlay: rgba(10, 10, 20, 0.36);
+  --text: #12121c;
+  --text-2: #4a4a62;
+  --text-3: #62627c;
+  --hairline: rgba(18, 18, 28, 0.07);
+  --hairline-strong: rgba(18, 18, 28, 0.12);
+  --accent: #5b4bdb;
+  --accent-hover: #4e3fcc;
+  --accent-soft: #efedff;
+  --on-accent: #ffffff;
+  --positive: #0f6b40;
+  --negative: #b4263f;
+  --warning: #8a5a00;
+  --focus: #5b4bdb;
+  --shadow-1: 0 1px 2px rgba(18, 18, 40, 0.04), 0 8px 24px rgba(40, 30, 120, 0.05);
+  --shadow-2: 0 -8px 40px rgba(18, 18, 40, 0.12);
+  --card-ring: 0 0 0 0 transparent;
+  --tabbar-bg: rgba(255, 255, 255, 0.86);
+  --hero-bg: linear-gradient(160deg, #eeebff 0%, #ffffff 70%);
+
+  /* Palette pocket — ordine fisso di assegnazione */
+  --pk-indaco: #4f6fe0;
+  --pk-arancio: #c45a24;
+  --pk-acqua: #0a8a7a;
+  --pk-ocra: #9e6a00;
+  --pk-cielo: #1f82c0;
+  --pk-verde: #3b8a1c;
+  --pk-viola: #7a4fd0;
+  --pk-magenta: #d0467f;
+  --pk-ardesia: #5f6a86; /* neutro: pocket archiviati, "Altro" nei grafici */
+
+  /* Grafici */
+  --chart-grid: rgba(18, 18, 28, 0.07);
+  --chart-axis: #62627c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #09090f;
+    --surface: #13131c;
+    --surface-2: #1a1a26;
+    --surface-3: #222231;
+    --overlay: rgba(0, 0, 0, 0.56);
+    --text: #ededf5;
+    --text-2: #b6b6ca;
+    --text-3: #8d8da6;
+    --hairline: rgba(255, 255, 255, 0.07);
+    --hairline-strong: rgba(255, 255, 255, 0.12);
+    --accent: #9d92ff;
+    --accent-hover: #b0a7ff;
+    --accent-soft: rgba(157, 146, 255, 0.14);
+    --on-accent: #0b0a1a;
+    --positive: #52d494;
+    --negative: #ff7a8f;
+    --warning: #eab651;
+    --focus: #b0a7ff;
+    --shadow-1: none;
+    --shadow-2: 0 -8px 40px rgba(0, 0, 0, 0.5);
+    --card-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    --tabbar-bg: rgba(19, 19, 28, 0.86);
+    --hero-bg: radial-gradient(120% 90% at 0% 0%, rgba(125, 110, 255, 0.28) 0%, rgba(19, 19, 28, 0) 60%), #13131c;
+    --pk-indaco: #6f86f0;
+    --pk-arancio: #dd6d34;
+    --pk-acqua: #1fa08c;
+    --pk-ocra: #b8800e;
+    --pk-cielo: #3598d6;
+    --pk-verde: #4f9e2c;
+    --pk-viola: #9a7af0;
+    --pk-magenta: #e0609a;
+    --pk-ardesia: #7c86a3;
+    --chart-grid: rgba(255, 255, 255, 0.07);
+    --chart-axis: #8d8da6;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #09090f;
+  --surface: #13131c;
+  --surface-2: #1a1a26;
+  --surface-3: #222231;
+  --overlay: rgba(0, 0, 0, 0.56);
+  --text: #ededf5;
+  --text-2: #b6b6ca;
+  --text-3: #8d8da6;
+  --hairline: rgba(255, 255, 255, 0.07);
+  --hairline-strong: rgba(255, 255, 255, 0.12);
+  --accent: #9d92ff;
+  --accent-hover: #b0a7ff;
+  --accent-soft: rgba(157, 146, 255, 0.14);
+  --on-accent: #0b0a1a;
+  --positive: #52d494;
+  --negative: #ff7a8f;
+  --warning: #eab651;
+  --focus: #b0a7ff;
+  --shadow-1: none;
+  --shadow-2: 0 -8px 40px rgba(0, 0, 0, 0.5);
+  --card-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --tabbar-bg: rgba(19, 19, 28, 0.86);
+  --hero-bg: radial-gradient(120% 90% at 0% 0%, rgba(125, 110, 255, 0.28) 0%, rgba(19, 19, 28, 0) 60%), #13131c;
+  --pk-indaco: #6f86f0;
+  --pk-arancio: #dd6d34;
+  --pk-acqua: #1fa08c;
+  --pk-ocra: #b8800e;
+  --pk-cielo: #3598d6;
+  --pk-verde: #4f9e2c;
+  --pk-viola: #9a7af0;
+  --pk-magenta: #e0609a;
+  --pk-ardesia: #7c86a3;
+  --chart-grid: rgba(255, 255, 255, 0.07);
+  --chart-axis: #8d8da6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.01ms;
+    --dur-base: 0.01ms;
+    --dur-slow: 0.01ms;
+  }
+}

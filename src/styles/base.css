@@ -1,0 +1,145 @@
+/*
+ * Base: reset, testo di sistema, safe area, focus.
+ *
+ * Dimensione del testo: su iOS `font: -apple-system-body` fa seguire a 1rem la
+ * "Dimensione testo" delle Impostazioni (17px di default). Altrove partiamo da
+ * 106.25% = 17px, che rispetta comunque le preferenze del browser.
+ */
+html {
+  font-size: 106.25%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+@supports (font: -apple-system-body) {
+  html {
+    font: -apple-system-body;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Gli input sotto i 16px fanno zoomare Safari iOS: mai sotto 16px. */
+input,
+select,
+textarea {
+  font-size: max(16px, 1rem);
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Scala tipografica ── */
+.t-display {
+  font-size: var(--fs-display);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+.t-title-1 {
+  font-size: var(--fs-title-1);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.t-title-2 {
+  font-size: var(--fs-title-2);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.t-title-3 {
+  font-size: var(--fs-title-3);
+  font-weight: var(--fw-bold);
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+.t-body {
+  font-size: var(--fs-body);
+  line-height: 1.45;
+}
+.t-callout {
+  font-size: var(--fs-callout);
+  line-height: 1.4;
+}
+.t-caption {
+  font-size: var(--fs-caption);
+  line-height: 1.35;
+}
+.t-overline {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.c-2 {
+  color: var(--text-2);
+}
+.c-3 {
+  color: var(--text-3);
+}
