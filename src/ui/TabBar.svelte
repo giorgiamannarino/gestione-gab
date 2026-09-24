@@ -60,7 +60,7 @@
     transition: color var(--dur-base);
   }
   .tab.active {
-    color: var(--accent);
+    color: var(--accent-ink);
     font-weight: var(--fw-bold);
   }
   .fab {

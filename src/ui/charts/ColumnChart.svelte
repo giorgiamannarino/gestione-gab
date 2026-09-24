@@ -109,7 +109,7 @@
     font-weight: 700;
   }
   .col {
-    fill: color-mix(in srgb, var(--accent) 32%, var(--surface));
+    fill: var(--chart-muted);
     transition: opacity var(--dur-base);
   }
   .col.hi {

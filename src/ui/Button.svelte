@@ -46,9 +46,16 @@
   .btn:active:not(:disabled) {
     transform: scale(0.97);
   }
+  /* Disattivato: grigio neutro, non una versione sbiadita dell'accento pastello. */
   .btn:disabled {
-    opacity: 0.45;
+    background: var(--surface-3);
+    color: var(--text-3);
     cursor: default;
+  }
+  .btn:disabled[aria-busy='true'] {
+    background: var(--accent);
+    color: var(--on-accent);
+    opacity: 0.8;
   }
   .lg {
     min-height: 56px;
@@ -73,14 +80,14 @@
   }
   .secondary {
     background: var(--accent-soft);
-    color: var(--accent);
+    color: var(--accent-ink);
   }
   .ghost {
-    color: var(--accent);
+    color: var(--accent-ink);
     padding: 0 var(--sp-3);
   }
   .danger {
-    background: color-mix(in srgb, var(--negative) 12%, var(--surface));
+    background: color-mix(in srgb, var(--negative-fill) var(--tint), var(--surface));
     color: var(--negative);
   }
 

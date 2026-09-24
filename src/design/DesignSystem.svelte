@@ -87,10 +87,10 @@
     { token: '--text-3', use: 'Didascalie, etichette' },
   ];
   const semantic = [
-    { token: '--accent', use: 'Accento, azioni' },
-    { token: '--positive', use: 'Entrate, conferme' },
-    { token: '--negative', use: 'Uscite in rosso, errori' },
-    { token: '--warning', use: 'Avvisi, budget superato' },
+    { fill: '--accent', ink: '--accent-ink', use: 'Accento, azioni', sample: 'Salva' },
+    { fill: '--positive-fill', ink: '--positive', use: 'Entrate, conferme', sample: '+2.345,00 €' },
+    { fill: '--negative-fill', ink: '--negative', use: 'Uscite, errori', sample: '−45,90 €' },
+    { fill: '--warning-fill', ink: '--warning', use: 'Avvisi, budget', sample: 'Superato' },
   ];
   const pockets = [
     { token: '--pk-indaco', name: 'Indaco' },
@@ -228,12 +228,20 @@
     </Card>
 
     <h3 class="t-title-3 sub">Accento e stati</h3>
+    <p class="intro c-2">
+      Ogni colore ha due versioni. Quella tenue colora le superfici: pulsanti, barre, badge, messaggi. Quella più
+      scura si usa solo per il testo, così importi ed etichette restano leggibili.
+    </p>
     <div class="swatch-grid">
-      {#each semantic as s (s.token)}
+      {#each semantic as s (s.fill)}
         <div class="swatch">
-          <span class="chip-color" style:background="var({s.token})"></span>
+          <span class="chip-color fill-demo" style:background="var({s.fill})">
+            <span style:color={s.fill === '--accent' ? 'var(--on-accent)' : 'var(--text)'}>Aa</span>
+          </span>
           <p class="sw-name">{s.use}</p>
-          <p class="sw-hex c-3">{readToken(s.token)} · {ratio(readToken(s.token), readToken('--surface'))}</p>
+          <p class="sw-hex c-3">superficie {readToken(s.fill)}</p>
+          <p class="ink-demo" style:color="var({s.ink})">{s.sample}</p>
+          <p class="sw-hex c-3">testo {readToken(s.ink)} · {ratio(readToken(s.ink), readToken('--surface'))}</p>
         </div>
       {/each}
     </div>
@@ -346,7 +354,7 @@
     </div>
     <div class="chips">
       {#each categoryChips as c (c.id)}
-        <Chip label={c.label} icon={c.icon} color="var(--accent)" selected={category === c.id} onclick={() => (category = c.id)} />
+        <Chip label={c.label} icon={c.icon} color="var(--accent-ink)" selected={category === c.id} onclick={() => (category = c.id)} />
       {/each}
     </div>
 
@@ -563,7 +571,7 @@
     </div>
     <div class="chips scroll">
       {#each categoryChips as c (c.id)}
-        <Chip label={c.label} icon={c.icon} color="var(--accent)" selected={category === c.id} onclick={() => (category = c.id)} />
+        <Chip label={c.label} icon={c.icon} color="var(--accent-ink)" selected={category === c.id} onclick={() => (category = c.id)} />
       {/each}
     </div>
     <Keypad bind:value={keypadValue} />
@@ -645,6 +653,18 @@
     border-radius: var(--r-sm);
     box-shadow: inset 0 0 0 1px var(--hairline-strong);
     margin-bottom: var(--sp-2);
+  }
+  .fill-demo {
+    display: flex;
+    align-items: flex-end;
+    padding: var(--sp-2) var(--sp-3);
+    font-weight: var(--fw-bold);
+    box-shadow: none;
+  }
+  .ink-demo {
+    margin-top: var(--sp-2);
+    font-weight: var(--fw-bold);
+    font-variant-numeric: tabular-nums;
   }
   .sw-name {
     font-size: var(--fs-callout);

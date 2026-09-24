@@ -32,7 +32,7 @@
     display: grid;
     place-items: center;
     border-radius: 50%;
-    color: var(--accent);
+    color: var(--accent-ink);
     background: var(--accent-soft);
     margin-bottom: var(--sp-4);
   }

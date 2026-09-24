@@ -67,14 +67,26 @@
   --text-3: #62627c;
   --hairline: rgba(18, 18, 28, 0.07);
   --hairline-strong: rgba(18, 18, 28, 0.12);
-  --accent: #5b4bdb;
-  --accent-hover: #4e3fcc;
-  --accent-soft: #efedff;
-  --on-accent: #ffffff;
-  --positive: #0f6b40;
-  --negative: #b4263f;
-  --warning: #8a5a00;
-  --focus: #5b4bdb;
+  /*
+   * Accento e stati. Due versioni per ciascuno:
+   *  - "fill" (--accent, --*-fill): superfici colorate. Nel chiaro sono pastello.
+   *  - "ink"  (--accent-ink, --positive, --negative, --warning): testo e icone,
+   *    abbastanza scuri da restare leggibili (AA) sul bianco.
+   */
+  --accent: #aea4f4;
+  --accent-soft: #f1effe;
+  --on-accent: #211a5c;
+  --accent-ink: #5a4bc8;
+  --positive: #2e7552;
+  --positive-fill: #a8dcc2;
+  --negative: #b0445a;
+  --negative-fill: #f4b8c3;
+  --warning: #86621a;
+  --warning-fill: #f2d396;
+  --tint: 30%; /* quanto "fill" usare negli sfondi tenui (messaggi, badge) */
+  --toast-action: #c9c1ff;
+  --chart-muted: #e3e3ee;
+  --focus: #5a4bc8;
   --shadow-1: 0 1px 2px rgba(18, 18, 40, 0.04), 0 8px 24px rgba(40, 30, 120, 0.05);
   --shadow-2: 0 -8px 40px rgba(18, 18, 40, 0.12);
   --card-ring: 0 0 0 0 transparent;
@@ -111,12 +123,18 @@
     --hairline: rgba(255, 255, 255, 0.07);
     --hairline-strong: rgba(255, 255, 255, 0.12);
     --accent: #9d92ff;
-    --accent-hover: #b0a7ff;
     --accent-soft: rgba(157, 146, 255, 0.14);
     --on-accent: #0b0a1a;
+    --accent-ink: #9d92ff;
     --positive: #52d494;
+    --positive-fill: #52d494;
     --negative: #ff7a8f;
+    --negative-fill: #ff7a8f;
     --warning: #eab651;
+    --warning-fill: #eab651;
+    --tint: 12%;
+    --toast-action: #4b3dc0;
+    --chart-muted: #3f3c65;
     --focus: #b0a7ff;
     --shadow-1: none;
     --shadow-2: 0 -8px 40px rgba(0, 0, 0, 0.5);
@@ -150,12 +168,18 @@
   --hairline: rgba(255, 255, 255, 0.07);
   --hairline-strong: rgba(255, 255, 255, 0.12);
   --accent: #9d92ff;
-  --accent-hover: #b0a7ff;
   --accent-soft: rgba(157, 146, 255, 0.14);
   --on-accent: #0b0a1a;
+  --accent-ink: #9d92ff;
   --positive: #52d494;
+  --positive-fill: #52d494;
   --negative: #ff7a8f;
+  --negative-fill: #ff7a8f;
   --warning: #eab651;
+  --warning-fill: #eab651;
+  --tint: 12%;
+  --toast-action: #4b3dc0;
+  --chart-muted: #3f3c65;
   --focus: #b0a7ff;
   --shadow-1: none;
   --shadow-2: 0 -8px 40px rgba(0, 0, 0, 0.5);

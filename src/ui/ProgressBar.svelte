@@ -19,7 +19,7 @@
   aria-valuemin={0}
   aria-valuemax={100}
   aria-valuenow={Math.round(pct)}
-  style:--c={over ? 'var(--warning)' : color}
+  style:--c={over ? 'var(--warning-fill)' : color}
 >
   <span style:width="{pct}%"></span>
 </div>

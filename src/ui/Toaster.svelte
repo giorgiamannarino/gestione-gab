@@ -75,6 +75,6 @@
     padding: 0 var(--sp-3);
     border-radius: var(--r-sm);
     font-weight: var(--fw-heavy);
-    color: color-mix(in srgb, var(--accent) 55%, var(--bg));
+    color: var(--toast-action);
   }
 </style>

@@ -29,17 +29,21 @@
     gap: var(--sp-3);
     padding: var(--sp-3) var(--sp-4);
     border-radius: var(--r-md);
-    background: color-mix(in srgb, var(--c) 10%, var(--surface));
-    --c: var(--accent);
+    background: color-mix(in srgb, var(--fill) var(--tint), var(--surface));
+    --c: var(--accent-ink);
+    --fill: var(--accent);
   }
   .success {
     --c: var(--positive);
+    --fill: var(--positive-fill);
   }
   .warning {
     --c: var(--warning);
+    --fill: var(--warning-fill);
   }
   .error {
     --c: var(--negative);
+    --fill: var(--negative-fill);
   }
   .icon {
     flex: none;
