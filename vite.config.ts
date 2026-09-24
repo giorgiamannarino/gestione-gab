@@ -1,6 +1,7 @@
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { VitePWA } from 'vite-plugin-pwa';
 
 /**
  * Content Security Policy. GitHub Pages non permette header HTTP personalizzati,
@@ -37,7 +38,39 @@ function contentSecurityPolicy(): Plugin {
 export default defineConfig({
   // Su GitHub Pages l'app vive in /<nome-repository>/: il workflow passa BASE_PATH.
   base: process.env.BASE_PATH ?? '/',
-  plugins: [svelte(), contentSecurityPolicy()],
+  define: { __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? '0.0.0') },
+  plugins: [
+    svelte(),
+    contentSecurityPolicy(),
+    VitePWA({
+      registerType: 'prompt',
+      injectRegister: false,
+      includeAssets: ['icons/*.png', 'icons/icon.svg'],
+      manifest: {
+        name: 'Conti',
+        short_name: 'Conti',
+        description: 'Gestione delle finanze personali, tutta sul telefono.',
+        lang: 'it',
+        start_url: '.',
+        scope: '.',
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#f4f4f8',
+        theme_color: '#f4f4f8',
+        icons: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,woff2,svg}', 'icons/icon-*.png', 'icons/apple-touch-icon.png'],
+        navigateFallback: 'index.html',
+        cleanupOutdatedCaches: true,
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+      },
+    }),
+  ],
   build: {
     target: 'es2022',
     // Nessun asset inline come data: URI, così la CSP resta stretta.

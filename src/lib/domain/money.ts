@@ -40,6 +40,19 @@ export function amountParts(cents: Cents, opts: FormatOptions = {}): AmountParts
   };
 }
 
+/** "1.234,56" / "1234.5" / "12" / "-3,9 €" → centesimi. Null se non è un importo. */
+export function parseEuroInput(s: string): Cents | null {
+  let t = s.replace(/[\s€ ]/g, '').replace('−', '-');
+  if (!t) return null;
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+  if (!/^-?\d+(\.\d{1,2})?$/.test(t)) return null;
+  const neg = t.startsWith('-');
+  const [i, d = ''] = t.replace('-', '').split('.');
+  const cents = Number(i) * 100 + Number(d.padEnd(2, '0'));
+  return neg ? -cents : cents;
+}
+
 export function formatCents(cents: Cents, opts: FormatOptions = {}): string {
   const p = amountParts(cents, opts);
   return `${p.sign}${p.int},${p.dec}${p.symbol}`;
