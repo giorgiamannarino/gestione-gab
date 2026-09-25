@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    Bell, ChevronLeft, ChevronRight, CloudUpload, Download, Fingerprint, HardDrive, Layers, ListChecks, Lock, Scale,
+    Bell, BookOpen, ChevronLeft, ChevronRight, CloudUpload, Download, Fingerprint, HardDrive, Layers, ListChecks, Lock, Scale,
     SlidersHorizontal, Tags, Trash2, Wallet,
   } from '@lucide/svelte';
   import { app } from '../lib/app/store.svelte';
@@ -218,6 +218,11 @@
         {@render nav('categorie', Tags, 'Categorie', `${app.data.categories.filter((c) => !c.system && !c.archived).length} categorie`)}
         {@render nav('fissi', ListChecks, 'Spese fisse', 'Voci, importi, giorni di addebito')}
         {@render nav('generali', SlidersHorizontal, 'Stipendio e piano', `Periodo dal giorno ${app.data.settings.salaryDay}`)}
+        <button class="nav-row" onclick={() => router.go('/guida')}>
+          <IconTile icon={BookOpen} color="var(--accent-ink)" size="sm" />
+          <span class="nav-text"><span class="strong">Come funziona l'app</span><span class="c-3 small">Logiche, regole, cosa si può modificare</span></span>
+          <ChevronRight size={18} class="chev" />
+        </button>
       </div>
     </Card>
     <Card>

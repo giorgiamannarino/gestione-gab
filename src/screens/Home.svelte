@@ -69,17 +69,17 @@
     </div>
   </header>
 
-  <section class="hero" aria-label="Patrimonio totale">
-    <p class="label">Patrimonio totale</p>
+  <button class="hero" onclick={() => router.go('/riepilogo')}>
+    <span class="label">Patrimonio totale <span class="more">Riepilogo <ChevronRight size={14} strokeWidth={2} /></span></span>
     <Amount cents={app.total} size="display" splitDecimals />
-    <p class="meta">
+    <span class="meta">
       <span class="delta" class:neg={delta < 0}>
         {#if delta < 0}<TrendingDown size={14} strokeWidth={2} />{:else}<TrendingUp size={14} strokeWidth={2} />{/if}
         <Amount cents={delta} signed size="sm" />
       </span>
       <span class="c-3">dal {Number(p.start.slice(8))} {monthName(Number(p.start.slice(5, 7)))}</span>
-    </p>
-  </section>
+    </span>
+  </button>
 
   <button class="backup-hint" onclick={() => router.go('/impostazioni/backup')}>
     <CloudUpload size={16} strokeWidth={1.75} />
@@ -229,12 +229,28 @@
     gap: var(--sp-2);
   }
   .hero {
+    display: block;
+    width: 100%;
+    text-align: left;
+    transition: transform var(--dur-fast) var(--ease-out);
     padding: var(--sp-5);
     border-radius: var(--r-lg);
     background: var(--hero-bg);
     box-shadow: var(--shadow-1), var(--card-ring);
   }
+  .hero:active {
+    transform: scale(0.99);
+  }
+  .more {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    float: right;
+    color: var(--accent-ink);
+    font-weight: var(--fw-bold);
+  }
   .label {
+    display: block;
     font-size: var(--fs-callout);
     color: var(--text-3);
     font-weight: var(--fw-medium);

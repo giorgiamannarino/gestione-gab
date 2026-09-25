@@ -129,6 +129,24 @@ test('giroconto programmato da confermare e aspetto scuro', async ({ page }) => 
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
 });
 
+test('riepilogo del mese e guida', async ({ page }) => {
+  await restoreExample(page);
+  await page.getByRole('button', { name: /Patrimonio totale/ }).click();
+  await expect(page.getByRole('heading', { name: 'Riepilogo' })).toBeVisible();
+  await expect(page.getByText(/Il patrimonio è passato da/)).toBeVisible();
+  await expect(page.getByText(/Lo stipendio di questo periodo non è ancora stato registrato/)).toBeVisible();
+  // Periodo precedente: stipendio e spese raccontati.
+  await page.getByRole('button', { name: 'Periodo precedente' }).click();
+  await expect(page.getByText(/Lo stipendio del 23 settembre è stato di/)).toBeVisible();
+  await expect(page.getByText(/La categoria più pesante è/)).toBeVisible();
+  await expect(page.getByText(/Hai messo da parte/)).toBeVisible();
+
+  await page.getByRole('button', { name: "Come funziona l'app" }).click();
+  await expect(page.getByRole('heading', { name: 'Come funziona' })).toBeVisible();
+  await page.getByText('Cosa si può modificare e cosa no').click();
+  await expect(page.getByRole('cell', { name: /Saldi: si calcolano sempre/ })).toBeVisible();
+});
+
 test('blocco con PIN', async ({ page }) => {
   await restoreExample(page);
   await page.getByRole('button', { name: 'Impostazioni' }).click();

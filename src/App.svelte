@@ -17,6 +17,8 @@
   import Piano from './screens/Piano.svelte';
   import QuickAdd from './screens/QuickAdd.svelte';
   import Statistiche from './screens/Statistiche.svelte';
+  import Riepilogo from './screens/Riepilogo.svelte';
+  import Guida from './screens/Guida.svelte';
 
   onMount(async () => {
     await app.init();
@@ -25,7 +27,7 @@
 
   const first = $derived(router.segments[0] ?? '');
   const tab = $derived<Tab>((['movimenti', 'piano', 'statistiche'].includes(first) ? first : 'home') as Tab);
-  const showTabs = $derived(first !== 'impostazioni');
+  const showTabs = $derived(!['impostazioni', 'riepilogo', 'guida'].includes(first));
 </script>
 
 {#if !app.ready}
@@ -54,6 +56,8 @@
           {:else if first === 'piano'}<Piano />
           {:else if first === 'statistiche'}<Statistiche />
           {:else if first === 'impostazioni'}<Impostazioni />
+          {:else if first === 'riepilogo'}<Riepilogo />
+          {:else if first === 'guida'}<Guida />
           {:else}<Home />{/if}
         {/key}
       </main>
