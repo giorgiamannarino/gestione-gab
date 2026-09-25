@@ -89,6 +89,12 @@
    * Layout a schermo fisso: scorre solo <main>, la tab bar è l'ultimo elemento della colonna.
    * Niente position: fixed, che su iPhone si stacca dal fondo (rimbalzo, tastiera, barra di Safari).
    */
+  :global(html:has(.shell.layout)),
+  :global(body:has(.shell.layout)) {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   .shell.layout {
     display: flex;
     flex-direction: column;

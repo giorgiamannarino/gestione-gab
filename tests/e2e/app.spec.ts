@@ -160,6 +160,32 @@ test('la barra in basso resta attaccata al fondo mentre si scorre', async ({ pag
   expect(await page.evaluate(() => window.scrollY)).toBe(0); // la pagina non scorre, solo il contenuto
 });
 
+test('i pannelli dal basso restano nello schermo e scorrono', async ({ page }) => {
+  await restoreExample(page);
+  const vh = page.viewportSize()!.height;
+  const check = async () => {
+    const panel = page.locator('dialog[open] .panel');
+    await expect(panel).toBeVisible();
+    await page.waitForTimeout(400); // fine animazione
+    const box = (await panel.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(Math.round(box.y + box.height)).toBe(vh);
+  };
+  await page.getByRole('button', { name: 'Nuovo movimento' }).click();
+  await check();
+  await page.locator('dialog[open]').getByRole('button', { name: 'Chiudi' }).click();
+
+  // Scheda lunga: una spesa fissa. Il contenuto scorre dentro il pannello fino al pulsante Salva.
+  await page.getByRole('button', { name: 'Impostazioni' }).click();
+  await page.getByRole('button', { name: /Spese fisse/ }).click();
+  await page.getByRole('button', { name: /^Auto/ }).click();
+  await check();
+  const save = page.locator('dialog[open]').getByRole('button', { name: 'Salva', exact: true });
+  await save.scrollIntoViewIfNeeded();
+  await expect(save).toBeInViewport();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
 test('pagina del pocket con previsione e saluto', async ({ page }) => {
   await restoreExample(page);
   await expect(page.getByRole('heading', { name: 'Buongiorno' })).toBeVisible(); // ore 10

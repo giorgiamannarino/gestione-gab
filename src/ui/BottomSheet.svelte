@@ -33,6 +33,30 @@
     }
   });
 
+  /*
+   * Tastiera su iPhone: la pagina non si ridimensiona, cambia solo l'area visibile.
+   * Si misura quella (visualViewport) e il pannello si appoggia sopra la tastiera.
+   */
+  $effect(() => {
+    const vv = window.visualViewport;
+    if (!open || !dialog || !vv) return;
+    const el = dialog;
+    const update = () => {
+      const keyboard = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      el.style.setProperty('--vv-height', `${vv.height}px`);
+      el.style.setProperty('--vv-top', `${vv.offsetTop}px`);
+      el.style.setProperty('--keyboard', `${keyboard}px`);
+      el.classList.toggle('keyboard', keyboard > 80);
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  });
+
   function reducedMotion() {
     return matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
@@ -111,10 +135,13 @@
 
 <style>
   .sheet {
+    /* Ancorato al fondo dell'area visibile: sopra la tastiera quando è aperta. */
+    position: fixed;
+    inset: auto 0 var(--keyboard, 0px) 0;
     width: 100%;
     max-width: 560px;
-    max-height: 100dvh;
-    margin: auto auto 0;
+    max-height: var(--vv-height, 100dvh);
+    margin: 0 auto;
     padding: 0;
     border: 0;
     background: transparent;
@@ -132,17 +159,23 @@
   .panel {
     display: flex;
     flex-direction: column;
-    max-height: calc(100dvh - 24px - env(safe-area-inset-top));
+    max-height: calc(var(--vv-height, 100dvh) - 24px - env(safe-area-inset-top));
     background: var(--surface);
     border-radius: var(--r-xl) var(--r-xl) 0 0;
     box-shadow: var(--shadow-2), var(--card-ring);
     padding-bottom: env(safe-area-inset-bottom);
+    overscroll-behavior: contain;
     transform: translateY(var(--drag));
     animation: slide-up var(--dur-slow) var(--ease-out);
     transition: transform 220ms var(--ease-out);
   }
   .dragging .panel {
     transition: none;
+  }
+  /* Con la tastiera aperta il margine della barra Home non serve: è coperto. */
+  .sheet:global(.keyboard) .panel {
+    padding-bottom: 0;
+    max-height: calc(var(--vv-height, 100dvh) - 8px);
   }
   .closing .panel {
     transform: translateY(100%);
