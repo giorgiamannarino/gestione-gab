@@ -2,6 +2,7 @@ import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 
 /**
  * Content Security Policy. GitHub Pages non permette header HTTP personalizzati,
@@ -35,11 +36,13 @@ function contentSecurityPolicy(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   // Su GitHub Pages l'app vive in /<nome-repository>/: il workflow passa BASE_PATH.
   base: process.env.BASE_PATH ?? '/',
   define: { __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? '0.0.0') },
   plugins: [
+    // Anteprima sul telefono: HTTPS con certificato locale (serve per la crittografia del browser).
+    mode === 'anteprima' && basicSsl(),
     svelte(),
     contentSecurityPolicy(),
     VitePWA({
@@ -79,4 +82,4 @@ export default defineConfig({
   test: {
     include: ['tests/unit/**/*.test.ts'],
   },
-});
+}));
