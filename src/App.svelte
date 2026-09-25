@@ -19,6 +19,7 @@
   import Statistiche from './screens/Statistiche.svelte';
   import Riepilogo from './screens/Riepilogo.svelte';
   import Guida from './screens/Guida.svelte';
+  import Pocket from './screens/Pocket.svelte';
 
   onMount(async () => {
     await app.init();
@@ -58,6 +59,7 @@
           {:else if first === 'impostazioni'}<Impostazioni />
           {:else if first === 'riepilogo'}<Riepilogo />
           {:else if first === 'guida'}<Guida />
+          {:else if first === 'pocket'}{#key router.segments[1]}<Pocket />{/key}
           {:else}<Home />{/if}
         {/key}
       </main>

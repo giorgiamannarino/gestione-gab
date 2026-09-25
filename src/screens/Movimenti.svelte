@@ -15,6 +15,12 @@
   import IconTile from '../ui/IconTile.svelte';
   import SwipeRow from '../ui/SwipeRow.svelte';
 
+  interface Props {
+    /** Pocket fisso: la lista mostra solo i suoi movimenti (pagina del pocket). */
+    fixedPocket?: Id;
+  }
+  let { fixedPocket }: Props = $props();
+
   let offset = $state(0);
   let all = $state(false);
   let query = $state('');
@@ -22,8 +28,12 @@
   let categoryF = $state<Id | null>(null);
   let filtersOpen = $state(false);
 
-  // Filtri dall'indirizzo (es. tocco su un pocket in Home).
+  // Filtri dall'indirizzo (es. /movimenti/pocket/ID) o pocket fisso.
   $effect(() => {
+    if (fixedPocket) {
+      pocketF = fixedPocket;
+      return;
+    }
     const [, type, id] = router.segments;
     if (type === 'pocket' && id) {
       pocketF = id;
@@ -78,18 +88,18 @@
     return { i: icon(c?.icon), c: color(c?.color) };
   }
   const editable = (t: Transaction) => t.kind === 'expense' || t.kind === 'income' || t.kind === 'transfer';
-  const activeFilters = $derived((pocketF ? 1 : 0) + (categoryF ? 1 : 0));
+  const activeFilters = $derived((pocketF && !fixedPocket ? 1 : 0) + (categoryF ? 1 : 0));
   function clearFilters() {
-    pocketF = null;
+    pocketF = fixedPocket ?? null;
     categoryF = null;
     query = '';
-    if (router.segments.length > 1) router.go('/movimenti');
+    if (!fixedPocket && router.segments.length > 1) router.go('/movimenti');
   }
 </script>
 
-<div class="page">
+<div class="page" class:embedded={!!fixedPocket}>
   <header class="head">
-    <h1 class="t-title-1">Movimenti</h1>
+    {#if fixedPocket}<h2 class="t-title-3">Movimenti e giroconti</h2>{:else}<h1 class="t-title-1">Movimenti</h1>{/if}
     <div class="period">
       {#if all}
         <button class="period-btn" onclick={() => (all = false)}>Tutto lo storico · mostra un periodo</button>
@@ -110,7 +120,7 @@
     </div>
     {#if activeFilters}
       <div class="active-filters">
-        {#if pocketF}<button class="tag" onclick={() => { pocketF = null; router.go('/movimenti'); }}>{pocketName(pocketF)} <X size={14} /></button>{/if}
+        {#if pocketF && !fixedPocket}<button class="tag" onclick={() => { pocketF = null; router.go('/movimenti'); }}>{pocketName(pocketF)} <X size={14} /></button>{/if}
         {#if categoryF}<button class="tag" onclick={() => (categoryF = null)}>{category(categoryF)?.name} <X size={14} /></button>{/if}
       </div>
     {/if}
@@ -157,12 +167,14 @@
 </div>
 
 <BottomSheet bind:open={filtersOpen} title="Filtri">
-  <p class="flabel">Pocket</p>
-  <div class="chips">
-    {#each app.data.pockets as p (p.id)}
-      <Chip label={p.name} color={color(p.color)} selected={pocketF === p.id} onclick={() => (pocketF = pocketF === p.id ? null : p.id)} />
-    {/each}
-  </div>
+  {#if !fixedPocket}
+    <p class="flabel">Pocket</p>
+    <div class="chips">
+      {#each app.data.pockets as p (p.id)}
+        <Chip label={p.name} color={color(p.color)} selected={pocketF === p.id} onclick={() => (pocketF = pocketF === p.id ? null : p.id)} />
+      {/each}
+    </div>
+  {/if}
   <p class="flabel">Categoria</p>
   <div class="chips">
     {#each app.data.categories.filter((c) => !c.archived) as c (c.id)}
@@ -180,6 +192,9 @@
 <style>
   .page {
     padding: calc(var(--sp-4) + env(safe-area-inset-top)) var(--gutter) var(--sp-5);
+  }
+  .page.embedded {
+    padding: var(--sp-5) 0 0;
   }
   .head {
     display: grid;

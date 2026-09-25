@@ -52,6 +52,26 @@ export function budgetSpent(budget: Recurring, txs: Transaction[], p: Period): C
     .reduce((a, l) => a - l.amount, 0);
 }
 
+/** Movimenti di un pocket nel periodo, fino a oggi. Le rettifiche sono a parte. */
+export function pocketPeriodStats(pocketId: Id, txs: Transaction[], p: Period) {
+  let spent = 0;
+  let received = 0;
+  let movedOut = 0;
+  let adjusted = 0;
+  for (const t of txs) {
+    if (!inPeriod(t.date, p)) continue;
+    for (const l of t.legs) {
+      if (l.pocketId !== pocketId) continue;
+      if (t.kind === 'adjustment') adjusted += l.amount;
+      else if (l.amount > 0) received += l.amount;
+      else if (t.kind === 'transfer') movedOut -= l.amount;
+      else spent -= l.amount; // uscite e arrotondamenti pagati da questo pocket
+    }
+  }
+  /** Tutto ciò che è uscito (serve per le riserve). */
+  return { spent, received, movedOut, adjusted, taken: spent + movedOut };
+}
+
 /** Chiave di deduplica di un addebito fisso nel periodo. */
 export function debitKey(r: Recurring, p: Period): string {
   return `rec:${r.id}:${p.key}`;

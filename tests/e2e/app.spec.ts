@@ -147,6 +147,25 @@ test('riepilogo del mese e guida', async ({ page }) => {
   await expect(page.getByRole('cell', { name: /Saldi: si calcolano sempre/ })).toBeVisible();
 });
 
+test('pagina del pocket con previsione e saluto', async ({ page }) => {
+  await restoreExample(page);
+  await expect(page.getByRole('heading', { name: 'Buongiorno' })).toBeVisible(); // ore 10
+  // Auto: riserva, nulla preso nel periodo → previsione metà dell'importo.
+  await page.getByRole('button', { name: /^Auto/ }).click();
+  await expect(page.getByRole('heading', { name: 'Auto' })).toBeVisible();
+  await expect(page.getByText('A inizio periodo')).toBeVisible();
+  await expect(page.getByText(/Previsione per il 23 novembre/)).toBeVisible();
+  await expect(page.getByText(/sposterai metà dell'importo/)).toBeVisible();
+  await expect(page.getByText(/La regola di "Auto" si cambia/)).toBeVisible();
+  // Casa: solo i suoi movimenti.
+  await page.getByRole('button', { name: 'Indietro' }).click();
+  await page.getByRole('button', { name: /^Casa/ }).click();
+  await expect(page.getByText(/Ricarica fino a 300,00/)).toBeVisible();
+  const titles = page.locator('main .card .title');
+  await expect(titles.filter({ hasText: 'Supermercato' }).first()).toBeVisible();
+  await expect(titles.filter({ hasText: 'Carburante' })).toHaveCount(0); // spesa di un altro pocket
+});
+
 test('blocco con PIN', async ({ page }) => {
   await restoreExample(page);
   await page.getByRole('button', { name: 'Impostazioni' }).click();

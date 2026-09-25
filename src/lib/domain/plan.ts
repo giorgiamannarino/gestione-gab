@@ -75,6 +75,17 @@ export function recurringAmount(r: Recurring, all: Recurring[], pockets: Pocket[
     .reduce((sum, d) => sum + d.amount + (target?.isRevolut ? roundupFor(d.amount) : 0), 0);
 }
 
+/**
+ * Previsione per il prossimo inizio mese di una voce, con i dati di oggi:
+ * saldo attuale (ricarica) e uscite del periodo finora (riserva).
+ */
+export function forecastAllocation(r: Recurring, all: Recurring[], pockets: Pocket[], balance: Cents, takenSoFar: Cents) {
+  const target = recurringAmount(r, all, pockets);
+  const mode: AllocationMode = r.mode ?? 'full';
+  const extra = r.reserveExtra ?? DEFAULT_RESERVE_EXTRA;
+  return { mode, target, extra, balance, taken: takenSoFar, amount: allocationAmount(mode, target, { remaining: balance, taken: takenSoFar, extra }) };
+}
+
 export function buildPlan(input: {
   salary: Cents;
   recurring: Recurring[];

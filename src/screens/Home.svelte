@@ -54,14 +54,22 @@
   function billMonth(m: string) {
     return monthName(Number(m.slice(5, 7)));
   }
-  const open = (pocket: Pocket) => router.go(`/movimenti/pocket/${pocket.id}`);
+  const open = (pocket: Pocket) => router.go(`/pocket/${pocket.id}`);
+
+  // Saluto in base all'ora, aggiornato ogni minuto.
+  let hour = $state(new Date().getHours());
+  $effect(() => {
+    const t = setInterval(() => (hour = new Date().getHours()), 60_000);
+    return () => clearInterval(t);
+  });
+  const greeting = $derived(hour >= 5 && hour < 13 ? 'Buongiorno,' : hour >= 13 && hour < 18 ? 'Buon pomeriggio,' : 'Buonasera,');
 </script>
 
 <div class="page">
   <header class="top">
     <div>
       <p class="eyebrow">{formatLongDate(app.today)}</p>
-      <h1 class="t-title-2">Ciao</h1>
+      <h1 class="t-title-2">{greeting}</h1>
     </div>
     <div class="actions">
       <IconButton icon={privacy.hidden ? EyeOff : Eye} label={privacy.hidden ? 'Mostra importi' : 'Nascondi importi'} onclick={togglePrivacy} />
@@ -132,7 +140,7 @@
         {#if invest}
           <div class="tiles">
             {#each g.pockets as pk (pk.id)}
-              <button class="tile" style:--c={color(pk.color)} onclick={() => router.go('/statistiche')}>
+              <button class="tile" style:--c={color(pk.color)} onclick={() => open(pk)}>
                 <IconTile icon={icon(pk.icon)} color={color(pk.color)} size="sm" />
                 <span class="tile-name">{pk.name}</span>
                 <Amount cents={bal.get(pk.id) ?? 0} />

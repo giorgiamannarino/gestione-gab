@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { balances, balanceSeries, sumBalances } from '../../src/lib/domain/balances';
 import { periodLabel, periodOf, shiftPeriod } from '../../src/lib/domain/dates';
-import { buildPlan, recurringAmount } from '../../src/lib/domain/plan';
-import { budgetSpent, dueDebits, spendingByCategory, totalSpending } from '../../src/lib/domain/stats';
+import { buildPlan, forecastAllocation, recurringAmount } from '../../src/lib/domain/plan';
+import { budgetSpent, dueDebits, pocketPeriodStats, spendingByCategory, totalSpending } from '../../src/lib/domain/stats';
 import { buildAdjustment, buildEntry, roundupPreview, roundupTxFor } from '../../src/lib/domain/transactions';
 import { ctx, pockets, recurring, tx } from './fixtures';
 
@@ -176,6 +176,32 @@ describe('piano di inizio mese', () => {
   it('ignora le voci disattivate', () => {
     const rec = recurring.map((r) => (r.id === 'c' ? { ...r, active: false } : r));
     expect(buildPlan({ salary: 234500, recurring: rec, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 0 }).saveable).toBe(114196);
+  });
+});
+
+describe('pagina del pocket', () => {
+  const p = periodOf('2030-01-23', 23);
+  const txs = [
+    tx({ date: '2030-01-23', kind: 'transfer', legs: [{ pocketId: 'main', amount: -15000 }, { pocketId: 'car', amount: 15000 }] }),
+    tx({ date: '2030-01-25', kind: 'expense', legs: [{ pocketId: 'car', amount: -3990 }] }),
+    tx({ date: '2030-01-25', kind: 'roundup', legs: [{ pocketId: 'car', amount: -10 }, { pocketId: 'coins', amount: 10 }] }),
+    tx({ date: '2030-01-26', kind: 'transfer', legs: [{ pocketId: 'car', amount: -1000 }, { pocketId: 'fun', amount: 1000 }] }),
+    tx({ date: '2030-01-27', kind: 'adjustment', legs: [{ pocketId: 'car', amount: 500 }] }),
+    tx({ date: '2030-02-23', kind: 'expense', legs: [{ pocketId: 'car', amount: -999 }] }),
+  ];
+
+  it('entrato, speso, spostato e rettifiche nel periodo', () => {
+    expect(pocketPeriodStats('car', txs, p)).toEqual({ spent: 4000, received: 15000, movedOut: 1000, adjusted: 500, taken: 5000 });
+  });
+
+  it('previsione del prossimo mese secondo la regola della voce', () => {
+    const car = { ...recurring.find((r) => r.id === 'c')!, mode: 'reserve' as const };
+    expect(forecastAllocation(car, recurring, pockets, 10500, 5000).amount).toBe(15000); // presi 50 → 50 + 100
+    expect(forecastAllocation(car, recurring, pockets, 15000, 0).amount).toBe(7500); // niente preso → metà
+    const home = { ...recurring.find((r) => r.id === 'h')!, mode: 'topUp' as const };
+    expect(forecastAllocation(home, recurring, pockets, 12000, 0).amount).toBe(18000); // 300 − 120 rimasti
+    const love = recurring.find((r) => r.id === 'l')!;
+    expect(forecastAllocation(love, recurring, pockets, 99999, 0).amount).toBe(5000); // pieno
   });
 });
 
