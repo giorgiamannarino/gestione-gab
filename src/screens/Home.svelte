@@ -2,6 +2,7 @@
   import { Check, ChevronRight, CloudUpload, Eye, EyeOff, Fuel, Settings, TrendingDown, TrendingUp, Wallet } from '@lucide/svelte';
   import { app } from '../lib/app/store.svelte';
   import { router } from '../lib/app/router.svelte';
+  import { openQuickAdd } from '../lib/app/quickadd.svelte';
   import { balances, sumBalances } from '../lib/domain/balances';
   import { addDays, formatLongDate, monthName } from '../lib/domain/dates';
   import { formatCents } from '../lib/domain/money';
@@ -91,6 +92,13 @@
       <InlineMessage tone="warning" title={daysSinceBackup === null ? 'Non hai ancora un backup' : `Backup vecchio di ${daysSinceBackup} giorni`}>
         Salvane uno nuovo: basta un tocco.
         {#snippet action()}<Button variant="secondary" onclick={() => router.go('/impostazioni/backup')}>Fai il backup</Button>{/snippet}
+      </InlineMessage>
+    {/if}
+
+    {#if app.eveningReminderDue}
+      <InlineMessage tone="info" title="Hai inserito le spese di oggi?">
+        Non ti scordare!
+        {#snippet action()}<Button variant="secondary" onclick={() => openQuickAdd()}>Aggiungi una spesa</Button>{/snippet}
       </InlineMessage>
     {/if}
 

@@ -74,12 +74,40 @@ test('uscita Revolut con arrotondamento, annulla, piano, statistiche', async ({ 
   await page.getByRole('button', { name: 'Piano' }).click();
   await page.getByLabel('Stipendio').fill('2.345');
   await page.getByRole('button', { name: 'Registra stipendio' }).click();
-  await expect(page.getByText('Stipendio 2.345,00 € → fissi e pocket 1.353,04 € → puoi mettere da parte 991,96 €')).toBeVisible();
-  await page.getByRole('checkbox', { name: /Svago/ }).click();
-  await expect(page.getByRole('checkbox', { name: /Svago/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByText(/Stipendio 2\.345,00\s€ → fissi e pocket [\d.,]+\s€ → puoi mettere da parte [\d.,]+\s€/)).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: /Svago/ })).toBeDisabled(); // già a posto: niente da ricaricare
+  await page.getByRole('checkbox', { name: /Fondo bollette/ }).click();
+  await expect(page.getByRole('checkbox', { name: /Fondo bollette/ })).toHaveAttribute('aria-checked', 'true');
 
   await page.getByRole('button', { name: 'Statistiche' }).click();
   await expect(page.getByRole('heading', { name: 'Spese per categoria' })).toBeVisible();
+});
+
+test('piano con ricarica dei pocket Revolut e prova delle notifiche', async ({ page, context }) => {
+  // In Chrome con emulazione iPhone il permesso risulta sempre bloccato: lo si simula concesso.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __notifiche: string[] };
+    w.__notifiche = [];
+    Object.defineProperty(Notification, 'permission', { get: () => 'granted' });
+    ServiceWorkerRegistration.prototype.showNotification = async (_t: string, o?: NotificationOptions) => { w.__notifiche.push(o?.body ?? ''); };
+  });
+  await restoreExample(page);
+  await page.getByRole('button', { name: 'Piano', exact: true }).click();
+  await page.getByLabel('Stipendio').fill('2.345');
+  await page.getByRole('button', { name: 'Registra stipendio' }).click();
+  // Con quanto è rimasto sui pocket Revolut si sposta meno: il risparmio sale sopra 991,96 €.
+  await expect(page.getByText(/rimasti/).first()).toBeVisible();
+  const text = await page.getByText(/Stipendio 2\.345,00\s€ →/).innerText();
+  const saved = Number(text.match(/da parte ([\d.,]+)/)![1]!.replace(/\./g, '').replace(',', '.'));
+  expect(saved).toBeGreaterThan(991.96);
+
+  await page.getByRole('button', { name: 'Home' }).click();
+  await page.getByRole('button', { name: 'Impostazioni' }).click();
+  await page.getByRole('button', { name: /Promemoria/ }).click();
+  await page.getByRole('switch', { name: /Promemoria delle 20/ }).click();
+  await page.getByRole('button', { name: 'Prova le notifiche' }).click();
+  await expect(page.getByText('Notifica inviata')).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { __notifiche: string[] }).__notifiche)).toContain('Hai inserito le spese di oggi? Non ti scordare!');
 });
 
 test('blocco con PIN', async ({ page }) => {

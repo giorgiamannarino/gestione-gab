@@ -15,6 +15,7 @@ import {
 import type { DataStore } from '../db/schema';
 import { DB_NAME } from '../db/schema';
 import { showToast } from '../ui/toast.svelte';
+import { notify, REMINDER_HOUR, REMINDER_TEXT } from './notify';
 
 const EMPTY: AppData = { groups: [], pockets: [], categories: [], transactions: [], recurring: [], valuations: [], settings: DEFAULT_SETTINGS };
 
@@ -40,6 +41,19 @@ class AppStore {
     return { pockets: this.data.pockets, newId: () => crypto.randomUUID(), now: () => Date.now() };
   }
 
+  /** Dopo le 20, se oggi non è stato inserito nessun movimento a mano. */
+  get eveningReminderDue(): boolean {
+    if (!this.data.settings.eveningReminder || new Date().getHours() < REMINDER_HOUR) return false;
+    return !this.data.transactions.some((t) => t.date === this.today && (t.kind === 'expense' || t.kind === 'income') && t.source === 'manual');
+  }
+
+  /** Mostra la notifica serale al massimo una volta al giorno, se l'app è aperta. */
+  async checkEveningReminder(): Promise<void> {
+    if (!this.db || !this.eveningReminderDue) return;
+    if ((await getMeta(this.db, 'lastReminder', '')) === this.today) return;
+    if (await notify('Conti', REMINDER_TEXT)) await setMeta(this.db, 'lastReminder', this.today);
+  }
+
   async init(): Promise<void> {
     try {
       this.db = await openAppDb();
@@ -55,7 +69,10 @@ class AppStore {
     setInterval(() => {
       const t = today();
       if (t !== this.today) this.today = t;
+      void this.checkEveningReminder();
     }, 60_000);
+    document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && void this.checkEveningReminder());
+    void this.checkEveningReminder();
   }
 
   async reload(): Promise<void> {
@@ -177,10 +194,12 @@ class AppStore {
   planFor(salary: number) {
     const main = this.mainPocket;
     const salaryTx = this.salaryTx;
-    const leftover = main && salaryTx ? this.balancesBeforeTx(salaryTx).get(main.id) ?? 0 : main ? this.balances.get(main.id) ?? 0 : 0;
+    // Saldi prima dello stipendio: stabili anche mentre si spuntano le voci della checklist.
+    const before = salaryTx ? this.balancesBeforeTx(salaryTx) : this.balances;
+    const leftover = main ? (before.get(main.id) ?? 0) : 0;
     return buildPlan({
       salary, recurring: this.data.recurring, pockets: this.data.pockets, mainPocketId: main?.id ?? '',
-      safetyMargin: this.data.settings.safetyMargin, leftover,
+      safetyMargin: this.data.settings.safetyMargin, leftover, balancesBefore: before,
     });
   }
 

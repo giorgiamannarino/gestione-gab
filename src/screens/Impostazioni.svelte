@@ -1,11 +1,12 @@
 <script lang="ts">
   import {
-    ChevronLeft, ChevronRight, CloudUpload, Download, Fingerprint, HardDrive, Layers, ListChecks, Lock, Scale,
+    Bell, ChevronLeft, ChevronRight, CloudUpload, Download, Fingerprint, HardDrive, Layers, ListChecks, Lock, Scale,
     SlidersHorizontal, Tags, Trash2, Wallet,
   } from '@lucide/svelte';
   import { app } from '../lib/app/store.svelte';
   import { router } from '../lib/app/router.svelte';
   import { APP_VERSION, exportCsv, saveBackup } from '../lib/app/backup-actions';
+  import { notify, notifyState, requestNotify, REMINDER_TEXT, type NotifyState } from '../lib/app/notify';
   import { formatDate, toISODate } from '../lib/domain/dates';
   import { formatCents, parseEuroInput } from '../lib/domain/money';
   import type { Category, Id, PaletteColor, Pocket, Recurring } from '../lib/domain/types';
@@ -31,7 +32,7 @@
   const section = $derived(router.segments[1] ?? '');
   const titles: Record<string, string> = {
     backup: 'Backup e dati', blocco: 'Blocco', pocket: 'Pocket', categorie: 'Categorie', fissi: 'Spese fisse',
-    generali: 'Stipendio e piano', saldi: 'Allinea i saldi', cancella: 'Cancella i dati',
+    generali: 'Stipendio e piano', saldi: 'Allinea i saldi', cancella: 'Cancella i dati', promemoria: 'Promemoria',
   };
 
   // ── Backup ──
@@ -156,6 +157,15 @@
     showToast('Impostazioni salvate', { tone: 'success' });
   }
 
+  // ── Promemoria ──
+  let notifyStatus = $state<NotifyState>(notifyState());
+  async function testNotify() {
+    if (notifyStatus !== 'granted') notifyStatus = await requestNotify();
+    if (notifyStatus !== 'granted') return showToast('Notifiche non autorizzate', { tone: 'error' });
+    const ok = await notify('Conti', REMINDER_TEXT);
+    showToast(ok ? 'Notifica inviata' : 'Non riesco a mostrare la notifica', { tone: ok ? 'success' : 'error' });
+  }
+
   // ── Cancella ──
   let wipeText = $state('');
 
@@ -181,6 +191,7 @@
       <div class="list">
         {@render nav('backup', CloudUpload, 'Backup e dati', lastBackup ? `Ultimo backup ${lastBackup}${app.pending ? ` · ${app.pending} da salvare` : ''}` : 'Nessun backup ancora')}
         {@render nav('blocco', Lock, 'Blocco', lock.enabled ? 'Attivo' : 'Non attivo')}
+        {@render nav('promemoria', Bell, 'Promemoria', app.data.settings.eveningReminder ? 'Ogni sera alle 20' : 'Non attivo')}
         {@render nav('saldi', Scale, 'Allinea i saldi', 'Rettifica con i saldi reali')}
       </div>
     </Card>
@@ -266,6 +277,40 @@
       {/if}
       <Button variant="danger" block onclick={async () => { await lock.disable(); showToast('Blocco disattivato'); }}>Disattiva il blocco</Button>
     {/if}
+
+  {:else if section === 'promemoria'}
+    <Card>
+      <Toggle
+        label="Promemoria delle 20"
+        description="Dopo le 20, se oggi non hai inserito movimenti, ti ricordo di farlo."
+        checked={!!app.data.settings.eveningReminder}
+        onchange={async (v) => {
+          await app.updateSettings({ eveningReminder: v });
+          if (v && notifyState() === 'default') notifyStatus = await requestNotify();
+        }}
+      />
+    </Card>
+    <Card>
+      <p class="strong">Notifiche</p>
+      <p class="c-3 small bottom">
+        {notifyStatus === 'granted' ? 'Attive su questo telefono.'
+          : notifyStatus === 'denied' ? 'Bloccate: riattivale in Impostazioni iPhone → Notifiche → Conti.'
+          : notifyStatus === 'unsupported' ? "Non disponibili qui. Su iPhone funzionano solo con l'app aggiunta alla schermata Home (iOS 16.4 o successivo)."
+          : 'Non ancora autorizzate.'}
+      </p>
+      <Button variant="secondary" block disabled={notifyStatus === 'unsupported' || notifyStatus === 'denied'} onclick={testNotify}>
+        <Bell size={18} /> Prova le notifiche
+      </Button>
+    </Card>
+    <InlineMessage tone="info" title="Notifica alle 20 anche con l'app chiusa">
+      Senza server l'app non può mandarti notifiche programmate quando è chiusa. Si fa in un minuto con Comandi Rapidi:
+      <ol class="steps">
+        <li>Apri <strong>Comandi Rapidi</strong> → <strong>Automazione</strong> → <strong>+</strong></li>
+        <li>Scegli <strong>Ora del giorno</strong>: 20:00, ogni giorno, <strong>Esegui immediatamente</strong></li>
+        <li>Aggiungi l'azione <strong>Mostra notifica</strong> con il testo: <em>{REMINDER_TEXT}</em></li>
+        <li>Salva: da stasera la notifica arriva ogni giorno alle 20</li>
+      </ol>
+    </InlineMessage>
 
   {:else if section === 'saldi'}
     <Card>
@@ -403,6 +448,9 @@
           {#each app.activePockets.filter((p) => p.id !== recEdit!.fromPocketId) as p (p.id)}<Chip label={p.name} color={color(p.color)} selected={recEdit.toPocketId === p.id} onclick={() => (recEdit!.toPocketId = p.id)} />{/each}
         </div>
         <Toggle label="Automatico con lo stipendio" description="Registrato da solo quando inserisci lo stipendio." checked={!!recEdit.auto} onchange={(v) => (recEdit!.auto = v || undefined)} />
+        {#if app.data.pockets.find((p) => p.id === recEdit!.toPocketId)?.isRevolut}
+          <Toggle label="Ricarica solo quanto manca" description="Sottrae quello che è rimasto sul pocket. Disattiva per accumulare l'importo pieno ogni mese." checked={recEdit.topUp !== false} onchange={(v) => (recEdit!.topUp = v ? undefined : false)} />
+        {/if}
       {/if}
       {#if recEdit.kind === 'debit'}
         <TextField label="Giorno di addebito" inputmode="numeric" value={recEdit.day ? String(recEdit.day) : ''} oninput={(e) => (recEdit!.day = Number((e.currentTarget as HTMLInputElement).value) || undefined)} hint="Il giorno in cui te lo propongo da confermare." />
@@ -550,6 +598,12 @@
   }
   .swatch.on {
     outline-color: var(--c);
+  }
+  .steps {
+    margin: var(--sp-2) 0 0;
+    padding-left: var(--sp-5);
+    display: grid;
+    gap: var(--sp-1);
   }
   .icons {
     display: grid;

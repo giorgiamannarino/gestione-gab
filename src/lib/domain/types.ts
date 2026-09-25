@@ -95,6 +95,11 @@ export interface Recurring {
   categoryId?: Id;
   /** Allocazioni registrate da sole all'arrivo dello stipendio. */
   auto?: boolean;
+  /**
+   * Allocazioni verso pocket Revolut: si sposta solo quanto manca per arrivare all'importo
+   * (default sì). Con `false` si sposta sempre l'importo pieno (es. per accumulare).
+   */
+  topUp?: boolean;
   active: boolean;
   order: number;
 }
@@ -113,6 +118,8 @@ export interface Settings {
   safetyMargin: Cents;
   nextBill?: { month: string; amount: Cents };
   weeklyBackupReminder: boolean;
+  /** Promemoria serale per inserire i movimenti del giorno. */
+  eveningReminder?: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

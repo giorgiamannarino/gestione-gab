@@ -126,6 +126,6 @@ export function demoData(todayDate: ISODate = todayFn()): AppData {
     transactions: txs,
     recurring,
     valuations,
-    settings: { ...DEFAULT_SETTINGS, salaryDay: day, salaryCategoryId: 'stipendio', nextBill: { month: nextMonth, amount: 19000 } },
+    settings: { ...DEFAULT_SETTINGS, eveningReminder: true, salaryDay: day, salaryCategoryId: 'stipendio', nextBill: { month: nextMonth, amount: 19000 } },
   };
 }

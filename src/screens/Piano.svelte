@@ -5,6 +5,7 @@
   import { formatCents, parseEuroInput } from '../lib/domain/money';
   import { periodLabel } from '../lib/domain/dates';
   import type { Id } from '../lib/domain/types';
+  import type { PlanLine } from '../lib/domain/plan';
   import { color, icon } from '../lib/ui/icons';
   import { privacy } from '../lib/ui/privacy.svelte';
   import Amount from '../ui/Amount.svelte';
@@ -171,14 +172,22 @@
   {/if}
 </div>
 
-{#snippet check(l: { recurringId: Id; name: string; fromPocketId: Id; toPocketId?: Id; amount: number })}
+{#snippet check(l: PlanLine)}
   {@const st = status(l)}
-  {@const ok = !!st}
+  {@const full = l.amount === 0}
+  {@const ok = !!st || full}
   {@const to = pocket(l.toPocketId)}
-  <button class="line check" class:ok disabled={st === 'manual'} title={st === 'manual' ? 'Già registrato con un giroconto' : undefined} onclick={() => app.togglePlanTransfer(l, app.today)} role="checkbox" aria-checked={ok}>
+  <button class="line check" class:ok disabled={st === 'manual' || full} title={st === 'manual' ? 'Già registrato con un giroconto' : undefined} onclick={() => app.togglePlanTransfer(l, app.today)} role="checkbox" aria-checked={ok}>
     <span class="tick" class:on={ok} aria-hidden="true">{#if ok}<Check size={14} strokeWidth={3} />{/if}</span>
     {#if to}<IconTile icon={icon(to.icon)} color={color(to.color)} size="sm" />{/if}
-    <span class="lname">{l.name}</span>
+    <span class="lname">
+      {l.name}
+      {#if l.remaining !== undefined}
+        <span class="topup">
+          {#if full}già a posto: rimasti {eur(l.remaining)}{:else if l.remaining !== 0}{eur(l.target)} − {eur(l.remaining)} rimasti{/if}
+        </span>
+      {/if}
+    </span>
     <Amount cents={l.amount} tone={ok ? 'muted' : 'default'} />
   </button>
 {/snippet}
@@ -247,6 +256,17 @@
   .check.ok .lname {
     color: var(--text-3);
     text-decoration: line-through;
+  }
+  .topup {
+    display: block;
+    font-size: var(--fs-caption);
+    font-weight: var(--fw-regular);
+    color: var(--text-3);
+    text-decoration: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .check:disabled {
+    cursor: default;
   }
   .tick {
     flex: none;

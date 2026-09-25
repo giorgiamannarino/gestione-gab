@@ -129,6 +129,26 @@ describe('piano di inizio mese', () => {
     expect(buildPlan({ salary: 100000, recurring, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 0 }).saveable).toBe(0);
   });
 
+  it('Revolut: ricarica solo quanto manca e il resto va nel risparmio', () => {
+    // Auto deve avere 150: ne sono rimasti 20 → si spostano 130.
+    const before = new Map([['car', 2000], ['fun', 45000], ['subs', -500]]);
+    const plan = buildPlan({ salary: 234500, recurring, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 0, balancesBefore: before });
+    const car = plan.revolut.find((l) => l.recurringId === 'c')!;
+    expect(car).toMatchObject({ target: 15000, remaining: 2000, amount: 13000 });
+    expect(plan.revolut.find((l) => l.recurringId === 'u')!.amount).toBe(0); // già oltre l'importo
+    expect(plan.revolut.find((l) => l.recurringId === 's')!.amount).toBe(4200); // in rosso: 37 + 5
+    expect(plan.revolutTotal).toBe(93700 - 2000 - 40000 + 500);
+    expect(plan.saveable).toBe(99196 + 2000 + 40000 - 500);
+    // Le voci non Revolut restano piene.
+    expect(plan.others[0]!.amount).toBe(10000);
+  });
+
+  it('una voce Revolut può restare a importo pieno (accumulo)', () => {
+    const rec = recurring.map((r) => (r.id === 'c' ? { ...r, topUp: false } : r));
+    const plan = buildPlan({ salary: 234500, recurring: rec, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 0, balancesBefore: new Map([['car', 2000]]) });
+    expect(plan.revolut.find((l) => l.recurringId === 'c')!.amount).toBe(15000);
+  });
+
   it('ignora le voci disattivate', () => {
     const rec = recurring.map((r) => (r.id === 'c' ? { ...r, active: false } : r));
     expect(buildPlan({ salary: 234500, recurring: rec, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 0 }).saveable).toBe(114196);

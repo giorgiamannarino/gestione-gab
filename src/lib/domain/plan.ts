@@ -11,7 +11,18 @@ export interface PlanLine {
   name: string;
   fromPocketId: Id;
   toPocketId?: Id;
+  /** Quanto spostare davvero. */
   amount: Cents;
+  /** Importo pieno della voce (per le ricariche: il livello da raggiungere). */
+  target: Cents;
+  /** Solo ricariche: quanto era rimasto sul pocket prima dello stipendio. */
+  remaining?: Cents;
+}
+
+/** Le voci verso un pocket Revolut sono ricariche fino all'importo, salvo `topUp: false`. */
+export function isTopUp(r: Recurring, pockets: Pocket[]): boolean {
+  if (r.kind !== 'allocation' || r.topUp === false) return false;
+  return pockets.find((p) => p.id === r.toPocketId)?.isRevolut ?? false;
 }
 
 export interface Plan {
@@ -49,16 +60,19 @@ export function buildPlan(input: {
   mainPocketId: Id;
   safetyMargin: Cents;
   leftover: Cents;
+  /** Saldi dei pocket prima dello stipendio: servono per le ricariche. */
+  balancesBefore?: Map<Id, Cents>;
 }): Plan {
   const { recurring, pockets, mainPocketId } = input;
   const active = recurring.filter((r) => r.active).sort((a, b) => a.order - b.order);
-  const line = (r: Recurring): PlanLine => ({
-    recurringId: r.id,
-    name: r.name,
-    fromPocketId: r.fromPocketId,
-    toPocketId: r.toPocketId,
-    amount: recurringAmount(r, recurring, pockets),
-  });
+  const line = (r: Recurring): PlanLine => {
+    const target = recurringAmount(r, recurring, pockets);
+    if (input.balancesBefore && r.toPocketId && isTopUp(r, pockets)) {
+      const remaining = input.balancesBefore.get(r.toPocketId) ?? 0;
+      return { recurringId: r.id, name: r.name, fromPocketId: r.fromPocketId, toPocketId: r.toPocketId, target, remaining, amount: Math.max(0, target - remaining) };
+    }
+    return { recurringId: r.id, name: r.name, fromPocketId: r.fromPocketId, toPocketId: r.toPocketId, target, amount: target };
+  };
   const isRevolut = (id?: Id) => pockets.find((p) => p.id === id)?.isRevolut ?? false;
 
   const allocations = active.filter((r) => r.kind === 'allocation' && r.fromPocketId === mainPocketId);
