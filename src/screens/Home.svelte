@@ -7,7 +7,9 @@
   import { addDays, formatLongDate, monthName } from '../lib/domain/dates';
   import { formatCents } from '../lib/domain/money';
   import { budgetSpent, debitKey, dueDebits, pocketPeriodStats, splitBill } from '../lib/domain/stats';
-  import { dailyAllowance } from '../lib/domain/planning';
+  import { categoryAnomalies, dailyAllowance, lastWeekSummary, noSpendStreak } from '../lib/domain/planning';
+  import { spendingByCategory } from '../lib/domain/stats';
+  import { shiftPeriod } from '../lib/domain/dates';
   import { parseEuroInput } from '../lib/domain/money';
   import BottomSheet from '../ui/BottomSheet.svelte';
   import TextField from '../ui/TextField.svelte';
@@ -43,6 +45,19 @@
   const due = $derived(dueDebits(app.data.recurring, app.data.transactions, p, app.today));
   const salaryDone = $derived(!!app.salaryTx);
   const nextBill = $derived(app.data.settings.nextBill);
+
+  // ── Andamento: settimana scorsa, spese fuori dal solito, giorni senza spese ──
+  const excludedCats = $derived(new Set(app.data.categories.filter((c) => c.excludedFromStats).map((c) => c.id)));
+  const week = $derived(lastWeekSummary(app.data.transactions, excludedCats, app.today));
+  const anomalies = $derived(
+    categoryAnomalies(
+      spendingByCategory(app.data.transactions, p, app.data.categories),
+      [1, 2, 3].map((i) => spendingByCategory(app.data.transactions, shiftPeriod(p, -i, app.data.settings.salaryDay), app.data.categories)),
+    ),
+  );
+  const streak = $derived(app.dailyPocket ? noSpendStreak(app.data.transactions, app.dailyPocket.id, app.today, app.dailyPocket.openingDate) : null);
+  const categoryName = (id: string) => app.data.categories.find((c) => c.id === id)?.name ?? 'Senza categoria';
+  const shortDay = (d: string) => `${Number(d.slice(8))} ${monthName(Number(d.slice(5, 7))).slice(0, 3)}`;
 
   // Oggi puoi spendere: saldo del pocket diviso i giorni che mancano a fine periodo.
   const daily = $derived.by(() => {
@@ -129,31 +144,6 @@
   </button>
 
   <div class="stack">
-    <!-- Due quadrati affiancati; se ne resta uno solo occupa tutta la riga. -->
-    {#if daily || backupOld}
-      <div class="tiles-row">
-        {#if daily}
-          <button class="daily pace-{daily.pace}" onclick={() => open(daily.pocket)}>
-            <span class="daily-label">Oggi puoi spendere</span>
-            {#if daily.pace === 'over'}
-              <span class="over-text">Attenzione, stai spendendo più di quanto programmato in questi giorni</span>
-            {:else}
-              <Amount cents={daily.today} size="lg" />
-            {/if}
-            <span class="c-3 small">su {daily.pocket.name} · quota {privacy.hidden ? '•••' : formatCents(daily.daily)} al giorno<br />{daily.daysLeft === 1 ? 'ultimo giorno' : `${daily.daysLeft} giorni al ${app.data.settings.salaryDay}`}</span>
-            <span class="pace">{daily.pace === 'ok' ? 'In linea' : daily.pace === 'tight' ? 'Un po’ oltre' : 'Oltre il programma'}</span>
-          </button>
-        {/if}
-        {#if backupOld}
-          <div class="backup-tile">
-            <span class="bt-icon" aria-hidden="true"><TriangleAlert size={18} strokeWidth={2} /></span>
-            <span class="bt-title">{daysSinceBackup === null ? 'Nessun backup ancora' : `Backup di ${daysSinceBackup} giorni fa`}</span>
-            <span class="c-3 small">Salvalo con un tocco.</span>
-            <Button variant="secondary" block onclick={() => router.go('/impostazioni/backup')}>Fai il backup</Button>
-          </div>
-        {/if}
-      </div>
-    {/if}
 
     {#if app.billDue}
       {@const due = app.billDue}
@@ -300,6 +290,68 @@
         </div>
       </Card>
     {/each}
+
+    <!-- In basso, dopo i conti: i due quadrati e poi le schede di andamento. -->
+    <!-- Due quadrati affiancati; se ne resta uno solo occupa tutta la riga. -->
+    {#if daily || backupOld}
+      <div class="tiles-row">
+        {#if daily}
+          <button class="daily pace-{daily.pace}" onclick={() => open(daily.pocket)}>
+            <span class="daily-label">Oggi puoi spendere</span>
+            {#if daily.pace === 'over'}
+              <span class="over-text">Attenzione, stai spendendo più di quanto programmato in questi giorni</span>
+            {:else}
+              <Amount cents={daily.today} size="lg" />
+            {/if}
+            <span class="c-3 small">su {daily.pocket.name} · quota {privacy.hidden ? '•••' : formatCents(daily.daily)} al giorno<br />{daily.daysLeft === 1 ? 'ultimo giorno' : `${daily.daysLeft} giorni al ${app.data.settings.salaryDay}`}</span>
+            <span class="pace">{daily.pace === 'ok' ? 'In linea' : daily.pace === 'tight' ? 'Un po’ oltre' : 'Oltre il programma'}</span>
+          </button>
+        {/if}
+        {#if backupOld}
+          <div class="backup-tile">
+            <span class="bt-icon" aria-hidden="true"><TriangleAlert size={18} strokeWidth={2} /></span>
+            <span class="bt-title">{daysSinceBackup === null ? 'Nessun backup ancora' : `Backup di ${daysSinceBackup} giorni fa`}</span>
+            <span class="c-3 small">Salvalo con un tocco.</span>
+            <Button variant="secondary" block onclick={() => router.go('/impostazioni/backup')}>Fai il backup</Button>
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    {#if week && (week.count > 0 || week.prevTotal > 0)}
+      <Card title="Settimana scorsa · {shortDay(week.from)} – {shortDay(week.to)}">
+        <p class="insight">
+          Hai speso <strong><Amount cents={week.total} size="sm" /></strong> in {week.count} {week.count === 1 ? 'spesa' : 'spese'}.
+          {#if week.change !== null}
+            <span class:pos-t={week.change < 0} class:neg-t={week.change > 0}>{week.change > 0 ? '+' : ''}{Math.round(week.change * 100)}%</span> rispetto alla settimana prima.
+          {/if}
+          {#if week.biggest}La spesa più grande: {week.biggest.description} (<Amount cents={week.biggest.amount} size="sm" />).{/if}
+        </p>
+      </Card>
+    {/if}
+
+    {#if anomalies.length}
+      <Card title="Spese fuori dal solito">
+        {#each anomalies.slice(0, 3) as a (a.id)}
+          <p class="insight">
+            <strong>{categoryName(a.id)}</strong>: <Amount cents={a.amount} size="sm" /> finora, <span class="neg-t">+{Math.round(a.change * 100)}%</span> sulla media degli ultimi periodi (<Amount cents={a.average} size="sm" />).
+          </p>
+        {/each}
+      </Card>
+    {/if}
+
+    {#if streak && daily}
+      <Card title="Giorni senza spese">
+        <p class="insight">
+          {#if streak.current > 0}
+            <strong>{streak.current} {streak.current === 1 ? 'giorno' : 'giorni'}</strong> senza spese su {daily.pocket.name}{streak.current >= streak.best && streak.current > 1 ? ': è il tuo record!' : ''}.
+          {:else}
+            Oggi hai già speso da {daily.pocket.name}: la serie riparte domani.
+          {/if}
+          {#if streak.best > 0 && !(streak.current >= streak.best && streak.current > 1)}Record: {streak.best} {streak.best === 1 ? 'giorno' : 'giorni'}.{/if}
+        </p>
+      </Card>
+    {/if}
   </div>
 </div>
 
@@ -409,6 +461,24 @@
   }
   .backup-hint span {
     flex: 1;
+  }
+  .insight {
+    color: var(--text-2);
+    line-height: 1.55;
+  }
+  .insight + .insight {
+    margin-top: var(--sp-2);
+  }
+  .insight strong {
+    color: var(--text);
+  }
+  .pos-t {
+    color: var(--positive);
+    font-weight: var(--fw-bold);
+  }
+  .neg-t {
+    color: var(--negative);
+    font-weight: var(--fw-bold);
   }
   .tiles-row {
     display: grid;

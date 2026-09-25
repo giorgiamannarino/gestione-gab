@@ -66,6 +66,67 @@ export function nextYear(date: ISODate): ISODate {
   return `${y + 1}-${String(m).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
 }
 
+// ── Settimana in breve ──
+
+/** Lunedì della settimana che contiene la data. */
+export function mondayOf(date: ISODate): ISODate {
+  const { y, m, d } = parseISODate(date);
+  const dow = (new Date(y, m - 1, d).getDay() + 6) % 7; // lunedì = 0
+  return addDays(date, -dow);
+}
+
+function spendingBetween(txs: Transaction[], from: ISODate, to: ISODate, excluded: Set<string>) {
+  const list = txs.filter((t) => t.kind === 'expense' && t.date >= from && t.date <= to && !(t.categoryId && excluded.has(t.categoryId)));
+  const amount = (t: Transaction) => -t.legs.reduce((a, l) => a + l.amount, 0);
+  const biggest = [...list].sort((a, b) => amount(b) - amount(a))[0];
+  return { total: list.reduce((a, t) => a + amount(t), 0), count: list.length, biggest: biggest ? { description: biggest.description, amount: amount(biggest) } : undefined };
+}
+
+/** La settimana scorsa (lunedì–domenica) confrontata con quella prima. */
+export function lastWeekSummary(txs: Transaction[], excluded: Set<string>, today: ISODate) {
+  const from = addDays(mondayOf(today), -7);
+  const to = addDays(from, 6);
+  const week = spendingBetween(txs, from, to, excluded);
+  const prev = spendingBetween(txs, addDays(from, -7), addDays(from, -1), excluded);
+  return { from, to, ...week, prevTotal: prev.total, change: prev.total > 0 ? (week.total - prev.total) / prev.total : null };
+}
+
+// ── Spese fuori dal solito ──
+
+/**
+ * Categorie in cui nel periodo si è già speso almeno il 30% (e almeno 20 €) in più
+ * della media dei periodi precedenti (solo quelli con dati).
+ */
+export function categoryAnomalies(current: Map<string, Cents>, previous: Map<string, Cents>[], minRatio = 1.3, minDiff = 2000) {
+  const out: { id: string; amount: Cents; average: Cents; change: number }[] = [];
+  const withData = previous.filter((m) => m.size > 0);
+  if (!withData.length) return out;
+  for (const [id, amount] of current) {
+    const average = Math.round(withData.reduce((a, m) => a + (m.get(id) ?? 0), 0) / withData.length);
+    if (average > 0 && amount >= average * minRatio && amount - average >= minDiff) out.push({ id, amount, average, change: (amount - average) / average });
+  }
+  return out.sort((a, b) => b.amount - b.average - (a.amount - a.average));
+}
+
+// ── Giorni senza spese ──
+
+/**
+ * Giorni consecutivi senza spese dal pocket, fino a oggi compreso (se oggi si è speso: 0),
+ * e il record da quando esiste il pocket.
+ */
+export function noSpendStreak(txs: Transaction[], pocketId: string, today: ISODate, since: ISODate) {
+  const days = new Set(txs.filter((t) => t.kind === 'expense' && t.legs.some((l) => l.pocketId === pocketId && l.amount < 0)).map((t) => t.date));
+  let current = 0;
+  for (let d = today; d >= since && !days.has(d); d = addDays(d, -1)) current++;
+  let best = 0;
+  let run = 0;
+  for (let d = since; d <= today; d = addDays(d, 1)) {
+    run = days.has(d) ? 0 : run + 1;
+    if (run > best) best = run;
+  }
+  return { current, best };
+}
+
 /** Etichette usate, con totale delle spese e numero di movimenti. */
 export function tagSummary(txs: Transaction[]) {
   const map = new Map<string, { tag: string; spent: Cents; count: number; first: ISODate; last: ISODate }>();

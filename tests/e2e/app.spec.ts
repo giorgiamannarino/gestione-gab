@@ -361,6 +361,23 @@ test('oggi puoi spendere, scadenze annuali ed etichette', async ({ page }) => {
   await expect(page.getByText(/Evento “Weekend Roma”: speso 15,00\s€ in 1 movimento/)).toBeVisible();
 });
 
+test('home: in basso i quadrati e poi settimana, spese fuori dal solito, giorni senza spese', async ({ page }) => {
+  await restoreExample(page);
+  const daily = page.getByRole('button', { name: /Oggi puoi spendere/ });
+  const revolut = page.getByRole('heading', { name: 'Revolut' });
+  const weekCard = page.getByRole('heading', { name: /Settimana scorsa/ });
+  const streakCard = page.getByRole('heading', { name: 'Giorni senza spese' });
+  // Ordine: conti → quadrati → nuove schede.
+  const y = async (l: typeof daily) => (await l.boundingBox())!.y;
+  expect(await y(daily)).toBeGreaterThan(await y(revolut));
+  expect(await y(weekCard)).toBeGreaterThan(await y(daily));
+  expect(await y(streakCard)).toBeGreaterThan(await y(weekCard));
+  // Settimana 21–27 ottobre: Supermercato 18 € + Carburante 48 €.
+  await expect(page.getByText(/Hai speso 66,00\s€ in 2 spese/)).toBeVisible();
+  await expect(page.getByText(/La spesa più grande: Carburante/)).toBeVisible();
+  await expect(page.getByText(/giorni senza spese su Svago/)).toBeVisible();
+});
+
 test('pagina del pocket con previsione e saluto', async ({ page }) => {
   await restoreExample(page);
   await expect(page.getByRole('heading', { name: 'Buongiorno' })).toBeVisible(); // ore 10
