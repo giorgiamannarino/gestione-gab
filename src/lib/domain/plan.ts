@@ -138,7 +138,11 @@ export function buildPlan(input: {
   const auto = allocations.filter((r) => r.auto).map(line);
   const revolut = allocations.filter((r) => !r.auto && isRevolut(r.toPocketId)).map(line);
   const others = allocations.filter((r) => !r.auto && !isRevolut(r.toPocketId)).map(line);
-  const keep = active.filter((r) => (r.kind === 'debit' || r.kind === 'budget') && r.fromPocketId === mainPocketId).map(line);
+  // Restano sul conto solo spese vere e budget. I giroconti programmati (es. versamenti verso
+  // FP e PAC) sono già coperti dagli spostamenti di inizio mese: contarli qui li raddoppierebbe.
+  const keep = active
+    .filter((r) => (r.kind === 'budget' || (r.kind === 'debit' && !r.toPocketId)) && r.fromPocketId === mainPocketId)
+    .map(line);
 
   const sum = (ls: PlanLine[]) => ls.reduce((a, l) => a + l.amount, 0);
   const fixedTotal = sum(auto) + sum(revolut) + sum(others) + sum(keep);

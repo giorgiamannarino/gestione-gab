@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowRight, Check, CircleCheck, CloudUpload, Lock, PiggyBank } from '@lucide/svelte';
+  import { Check, CircleCheck, CloudUpload, Lock, PiggyBank } from '@lucide/svelte';
   import { app } from '../lib/app/store.svelte';
   import { router } from '../lib/app/router.svelte';
   import { formatCents, parseEuroInput } from '../lib/domain/money';
@@ -33,7 +33,8 @@
   let salaryInput = $state('');
   let salaryError = $state('');
   let savingInput = $state('');
-  // Bollette attese in questo periodo: quanto mancherà nel fondo va tolto dal risparmio proposto.
+  // Bollette attese in questo periodo: solo informazione. L'accantonamento è già nei fissi e
+  // l'eventuale differenza, al pagamento, arriva dai Risparmi: non va tolta anche dalla proposta.
   const billsPocket = $derived(app.data.pockets.find((p) => p.role === 'bills' && !p.archived));
   const billInfo = $derived.by(() => {
     const bill = app.billThisPeriod;
@@ -45,7 +46,7 @@
     const allocation = !bill.late && line && !app.planStatus(line) ? line.amount : 0; // se già spostato è già nel fondo
     return { estimate: bill.estimate, fund, allocation, late: bill.late, shortfall: billShortfall(fund, allocation, bill.estimate) };
   });
-  const proposal = $derived(Math.max(0, plan.saveable - (billInfo?.shortfall ?? 0)));
+  const proposal = $derived(plan.saveable);
   const saveAmount = $derived(parseEuroInput(savingInput) ?? proposal);
   const savedTx = $derived(app.txByKey(`plan:save:${key}`));
   const leftoverTx = $derived(app.txByKey(`plan:leftover:${key}`));
@@ -93,17 +94,15 @@
     <p class="c-3 small center">Dopo lo stipendio qui trovi la checklist di cosa spostare dove.</p>
   {:else}
     <section class="summary" aria-label="Riepilogo">
-      <div class="sum-row"><span class="c-3">Stipendio</span><Amount cents={salary} size="lg" /></div>
-      <ArrowRight size={16} class="arrow" />
-      <div class="sum-row"><span class="c-3">Fissi e pocket</span><Amount cents={plan.fixedTotal} size="lg" /></div>
-      <ArrowRight size={16} class="arrow" />
-      {#if billInfo?.shortfall}
-        <ArrowRight size={16} class="arrow" />
-        <div class="sum-row"><span class="c-3">Da tenere per le bollette</span><Amount cents={billInfo.shortfall} size="lg" /></div>
+      <!-- Come uno scontrino: stipendio, meno fissi e margine, uguale risparmio. -->
+      <div class="sum-row"><span class="c-2">Stipendio</span><Amount cents={salary} /></div>
+      <div class="sum-row"><span class="c-2"><span class="op">−</span>Fissi e pocket</span><Amount cents={plan.fixedTotal} /></div>
+      {#if plan.marginFromSalary}
+        <div class="sum-row"><span class="c-2"><span class="op">−</span>Margine di sicurezza</span><Amount cents={plan.marginFromSalary} /></div>
       {/if}
-      <div class="sum-row strong"><span>Puoi mettere da parte</span><Amount cents={proposal} size="lg" /></div>
+      <div class="sum-row total"><span><span class="op">=</span>Puoi mettere da parte</span><Amount cents={proposal} size="lg" /></div>
       <p class="sr-only-sentence c-3 small">
-        Stipendio {eur(salary)} → fissi e pocket {eur(plan.fixedTotal)}{plan.marginFromSalary ? ` → margine ${eur(plan.marginFromSalary)}` : ''}{billInfo?.shortfall ? ` → bollette ${eur(billInfo.shortfall)}` : ''} → puoi mettere da parte {eur(proposal)}
+        Stipendio {eur(salary)} → fissi e pocket {eur(plan.fixedTotal)}{plan.marginFromSalary ? ` → margine ${eur(plan.marginFromSalary)}` : ''} → puoi mettere da parte {eur(proposal)}
       </p>
     </section>
 
@@ -168,7 +167,7 @@
           Stima {eur(billInfo.estimate)}. Messi da parte per queste bollette: {eur(billInfo.fund)}{billInfo.allocation ? `, e con l'accantonamento del mese si arriva a ${eur(billInfo.fund + billInfo.allocation)}` : ''}.
           {#if billInfo.late}L'accantonamento di questo mese resta per le bollette successive.{/if}
           {#if billInfo.shortfall > 0}
-            Mancheranno circa <strong>{eur(billInfo.shortfall)}</strong>, che verranno presi da {app.savingsTarget?.name ?? 'Risparmi'}: li ho già tolti dalla proposta di risparmio qui sotto.
+            Mancheranno circa <strong>{eur(billInfo.shortfall)}</strong>, che al pagamento verranno presi da {app.savingsTarget?.name ?? 'Risparmi'}.
           {:else}
             Il fondo basta.
           {/if}
@@ -179,7 +178,7 @@
     {#if app.savingsTarget && salaryFromPlan}
       <Card title="Metti da parte">
         <p class="c-2 small">
-          Proposta: sposta su {app.savingsTarget.name} quello che avanza dopo fissi e pocket{billInfo?.shortfall ? `, meno i ${eur(billInfo.shortfall)} che serviranno per le bollette` : ''}.
+          Proposta: sposta su {app.savingsTarget.name} quello che avanza dopo fissi e pocket.
         </p>
         {#if savedTx}
           <div class="done-box"><CircleCheck size={18} /> Spostati <Amount cents={savedTx.legs[1]?.amount ?? 0} /> su {app.savingsTarget.name}</div>
@@ -275,19 +274,23 @@
     background: var(--hero-bg);
     box-shadow: var(--shadow-1), var(--card-ring);
   }
-  .summary :global(.arrow) {
+  .op {
+    display: inline-block;
+    width: 1.1em;
     color: var(--text-3);
-    transform: rotate(90deg);
-    margin-left: 2px;
   }
   .sum-row {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
   }
-  .sum-row.strong {
+  .sum-row.total {
+    margin-top: var(--sp-2);
+    padding-top: var(--sp-2);
+    border-top: 1px solid var(--hairline-strong);
     color: var(--positive);
     font-weight: var(--fw-bold);
+    align-items: center;
   }
   .sr-only-sentence {
     margin-top: var(--sp-2);

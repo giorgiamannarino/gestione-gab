@@ -173,6 +173,16 @@ describe('piano di inizio mese', () => {
     });
   });
 
+  it('i giroconti programmati (es. versamenti FP/PAC) non restano sul conto e non si contano due volte', () => {
+    const rec = [
+      ...recurring,
+      { id: 'fpv', name: 'Versamento fondo', kind: 'debit' as const, amount: 10000, fromPocketId: 'main', toPocketId: 'inv1', day: 8, active: true, order: 20 },
+    ];
+    const plan = buildPlan({ salary: 234500, recurring: rec, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 0 });
+    expect(plan.keep.map((l) => l.recurringId)).toEqual(['tax', 'fuel']);
+    expect(plan.fixedTotal).toBe(135304);
+  });
+
   describe('margine di sicurezza e avanzo', () => {
     const plan = (margin: number, leftover: number) =>
       buildPlan({ salary: 234500, recurring, pockets, mainPocketId: 'main', safetyMargin: margin, leftover });
