@@ -297,7 +297,10 @@ test('oggi puoi spendere, scadenze annuali ed etichette', async ({ page }) => {
   await restoreExample(page);
   // Oggi puoi spendere (pocket Svago), 26 giorni al 22 novembre compreso.
   const daily = page.getByRole('button', { name: /Oggi puoi spendere/ });
-  await expect(daily).toContainText('su Svago · 26 giorni al 23');
+  await expect(daily).toContainText('su Svago');
+  await expect(daily).toContainText('26 giorni al 23');
+  // Backup appena ripristinato: niente promemoria, il quadrato occupa tutta la riga.
+  await expect(page.locator('.backup-tile')).toHaveCount(0);
 
   // Scadenza: bollo da 180 € il 10 marzo → 4 stipendi prima → 45 € a stipendio.
   await page.getByRole('button', { name: 'Impostazioni' }).click();

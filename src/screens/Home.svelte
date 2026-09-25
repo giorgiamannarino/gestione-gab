@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Check, ChevronRight, CloudUpload, Eye, EyeOff, Fuel, Settings, TrendingDown, TrendingUp, Wallet } from '@lucide/svelte';
+  import { TriangleAlert, Check, ChevronRight, CloudUpload, Eye, EyeOff, Fuel, Settings, TrendingDown, TrendingUp, Wallet } from '@lucide/svelte';
   import { app } from '../lib/app/store.svelte';
   import { router } from '../lib/app/router.svelte';
   import { openQuickAdd } from '../lib/app/quickadd.svelte';
@@ -129,22 +129,26 @@
   </button>
 
   <div class="stack">
-    {#if daily}
-      <button class="daily pace-{daily.pace}" onclick={() => open(daily.pocket)}>
-        <span class="daily-text">
-          <span class="daily-label">Oggi puoi spendere</span>
-          <Amount cents={daily.perDay} size="lg" />
-          <span class="c-3 small">su {daily.pocket.name} · {daily.daysLeft === 1 ? 'ultimo giorno' : `${daily.daysLeft} giorni al ${app.data.settings.salaryDay}`}</span>
-        </span>
-        <span class="pace">{daily.pace === 'ok' ? 'In linea' : daily.pace === 'fast' ? 'Un po’ veloce' : 'Troppo veloce'}</span>
-      </button>
-    {/if}
-
-    {#if backupOld}
-      <InlineMessage tone="warning" title={daysSinceBackup === null ? 'Non hai ancora un backup' : `Backup vecchio di ${daysSinceBackup} giorni`}>
-        Salvane uno nuovo: basta un tocco.
-        {#snippet action()}<Button variant="secondary" onclick={() => router.go('/impostazioni/backup')}>Fai il backup</Button>{/snippet}
-      </InlineMessage>
+    <!-- Due quadrati affiancati; se ne resta uno solo occupa tutta la riga. -->
+    {#if daily || backupOld}
+      <div class="tiles-row">
+        {#if daily}
+          <button class="daily pace-{daily.pace}" onclick={() => open(daily.pocket)}>
+            <span class="daily-label">Oggi puoi spendere</span>
+            <Amount cents={daily.perDay} size="lg" />
+            <span class="c-3 small">su {daily.pocket.name}<br />{daily.daysLeft === 1 ? 'ultimo giorno' : `${daily.daysLeft} giorni al ${app.data.settings.salaryDay}`}</span>
+            <span class="pace">{daily.pace === 'ok' ? 'In linea' : daily.pace === 'fast' ? 'Un po’ veloce' : 'Troppo veloce'}</span>
+          </button>
+        {/if}
+        {#if backupOld}
+          <div class="backup-tile">
+            <span class="bt-icon" aria-hidden="true"><TriangleAlert size={18} strokeWidth={2} /></span>
+            <span class="bt-title">{daysSinceBackup === null ? 'Nessun backup ancora' : `Backup di ${daysSinceBackup} giorni fa`}</span>
+            <span class="c-3 small">Salvalo con un tocco.</span>
+            <Button variant="secondary" block onclick={() => router.go('/impostazioni/backup')}>Fai il backup</Button>
+          </div>
+        {/if}
+      </div>
     {/if}
 
     {#if app.billDue}
@@ -402,20 +406,57 @@
   .backup-hint span {
     flex: 1;
   }
+  .tiles-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: var(--sp-3);
+  }
   /* Oggi puoi spendere: il colore segue il ritmo di spesa. */
   .daily {
     --c: var(--positive);
     --f: var(--positive-fill);
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--sp-3);
-    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
     padding: var(--sp-4);
     border-radius: var(--r-lg);
     text-align: left;
     background: color-mix(in srgb, var(--f) var(--tint), var(--surface));
-    box-shadow: var(--shadow-1), var(--card-ring), inset 4px 0 0 var(--f);
+    box-shadow: var(--shadow-1), var(--card-ring);
+  }
+  .daily .pace {
+    margin-top: auto;
+  }
+  .daily .small {
+    margin-bottom: var(--sp-2);
+  }
+  .backup-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+    padding: var(--sp-4);
+    border-radius: var(--r-lg);
+    background: color-mix(in srgb, var(--warning-fill) var(--tint), var(--surface));
+    box-shadow: var(--shadow-1), var(--card-ring);
+  }
+  .backup-tile :global(.btn) {
+    margin-top: auto;
+    padding: 0 var(--sp-3);
+  }
+  .bt-icon {
+    color: var(--warning);
+    margin-bottom: var(--sp-1);
+  }
+  .bt-title {
+    font-weight: var(--fw-bold);
+    line-height: 1.3;
+  }
+  .backup-tile .small {
+    margin-bottom: var(--sp-3);
   }
   .daily.pace-fast {
     --c: var(--warning);
