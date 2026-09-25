@@ -96,10 +96,14 @@ export interface Recurring {
   /** Allocazioni registrate da sole all'arrivo dello stipendio. */
   auto?: boolean;
   /**
-   * Allocazioni verso pocket Revolut: si sposta solo quanto manca per arrivare all'importo
-   * (default sì). Con `false` si sposta sempre l'importo pieno (es. per accumulare).
+   * Come si calcola lo spostamento a inizio periodo (default: importo pieno).
+   * - topUp: solo quanto manca per arrivare all'importo (es. Abbonamenti, Casa, Svago).
+   * - reserve: nulla preso nel periodo prima → metà; preso meno dell'importo → preso + extra;
+   *   preso almeno l'importo → quanto preso (es. Auto).
    */
-  topUp?: boolean;
+  mode?: 'topUp' | 'reserve';
+  /** Riserve: extra da aggiungere quando è stato preso meno dell'importo (default 100 €). */
+  reserveExtra?: Cents;
   active: boolean;
   order: number;
 }

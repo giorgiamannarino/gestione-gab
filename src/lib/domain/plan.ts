@@ -15,14 +15,36 @@ export interface PlanLine {
   amount: Cents;
   /** Importo pieno della voce (per le ricariche: il livello da raggiungere). */
   target: Cents;
-  /** Solo ricariche: quanto era rimasto sul pocket prima dello stipendio. */
+  mode: AllocationMode;
+  /** Ricarica: quanto era rimasto sul pocket prima dello stipendio. */
   remaining?: Cents;
+  /** Riserva: quanto è uscito dal pocket nel periodo precedente. */
+  taken?: Cents;
 }
 
-/** Le voci verso un pocket Revolut sono ricariche fino all'importo, salvo `topUp: false`. */
-export function isTopUp(r: Recurring, pockets: Pocket[]): boolean {
-  if (r.kind !== 'allocation' || r.topUp === false) return false;
-  return pockets.find((p) => p.id === r.toPocketId)?.isRevolut ?? false;
+export type AllocationMode = NonNullable<Recurring['mode']> | 'full';
+
+/** Extra predefinito per le riserve quando è stato preso meno del budget. */
+export const DEFAULT_RESERVE_EXTRA: Cents = 10_000;
+
+/**
+ * Importo da spostare secondo la modalità della voce.
+ * - full: sempre l'importo pieno.
+ * - topUp: solo quanto manca per arrivare all'importo.
+ * - reserve: nulla preso → metà del budget; preso meno del budget → preso + extra; altrimenti → preso.
+ */
+export function allocationAmount(mode: AllocationMode, target: Cents, info: { remaining?: Cents; taken?: Cents; extra?: Cents }): Cents {
+  switch (mode) {
+    case 'topUp':
+      return Math.max(0, target - (info.remaining ?? 0));
+    case 'reserve': {
+      const taken = Math.max(0, info.taken ?? 0);
+      if (taken === 0) return Math.round(target / 2);
+      return taken < target ? taken + (info.extra ?? DEFAULT_RESERVE_EXTRA) : taken;
+    }
+    default:
+      return target;
+  }
 }
 
 export interface Plan {
@@ -62,16 +84,24 @@ export function buildPlan(input: {
   leftover: Cents;
   /** Saldi dei pocket prima dello stipendio: servono per le ricariche. */
   balancesBefore?: Map<Id, Cents>;
+  /** Uscite di ogni pocket nel periodo precedente: servono per le riserve. */
+  takenPrev?: Map<Id, Cents>;
 }): Plan {
   const { recurring, pockets, mainPocketId } = input;
   const active = recurring.filter((r) => r.active).sort((a, b) => a.order - b.order);
   const line = (r: Recurring): PlanLine => {
     const target = recurringAmount(r, recurring, pockets);
-    if (input.balancesBefore && r.toPocketId && isTopUp(r, pockets)) {
-      const remaining = input.balancesBefore.get(r.toPocketId) ?? 0;
-      return { recurringId: r.id, name: r.name, fromPocketId: r.fromPocketId, toPocketId: r.toPocketId, target, remaining, amount: Math.max(0, target - remaining) };
+    const base = { recurringId: r.id, name: r.name, fromPocketId: r.fromPocketId, toPocketId: r.toPocketId, target };
+    const mode: AllocationMode = r.kind === 'allocation' && r.toPocketId ? (r.mode ?? 'full') : 'full';
+    if (mode === 'topUp' && input.balancesBefore) {
+      const remaining = input.balancesBefore.get(r.toPocketId!) ?? 0;
+      return { ...base, mode, remaining, amount: allocationAmount(mode, target, { remaining }) };
     }
-    return { recurringId: r.id, name: r.name, fromPocketId: r.fromPocketId, toPocketId: r.toPocketId, target, amount: target };
+    if (mode === 'reserve' && input.takenPrev) {
+      const taken = input.takenPrev.get(r.toPocketId!) ?? 0;
+      return { ...base, mode, taken, amount: allocationAmount(mode, target, { taken, extra: r.reserveExtra }) };
+    }
+    return { ...base, mode: 'full', amount: target };
   };
   const isRevolut = (id?: Id) => pockets.find((p) => p.id === id)?.isRevolut ?? false;
 

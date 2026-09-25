@@ -3,7 +3,7 @@
  * Ogni azione scrive nel database e poi ricarica: il database è l'unica fonte di verità.
  */
 import { balances } from '../domain/balances';
-import { today, periodOf, type Period } from '../domain/dates';
+import { today, periodOf, shiftPeriod, type Period } from '../domain/dates';
 import { formatCents } from '../domain/money';
 import { buildAdjustment, buildEntry, type Ctx, type EntryInput } from '../domain/transactions';
 import { DEFAULT_SETTINGS, type AppData, type Id, type Recurring, type Settings, type Transaction } from '../domain/types';
@@ -197,9 +197,16 @@ class AppStore {
     // Saldi prima dello stipendio: stabili anche mentre si spuntano le voci della checklist.
     const before = salaryTx ? this.balancesBeforeTx(salaryTx) : this.balances;
     const leftover = main ? (before.get(main.id) ?? 0) : 0;
+    // Uscite di ogni pocket nel periodo precedente (spese, arrotondamenti, giroconti; non le rettifiche).
+    const prev = shiftPeriod(this.period, -1, this.data.settings.salaryDay);
+    const takenPrev = new Map<Id, number>();
+    for (const t of this.data.transactions) {
+      if (t.kind === 'adjustment' || t.date < prev.start || t.date > prev.end) continue;
+      for (const l of t.legs) if (l.amount < 0) takenPrev.set(l.pocketId, (takenPrev.get(l.pocketId) ?? 0) - l.amount);
+    }
     return buildPlan({
       salary, recurring: this.data.recurring, pockets: this.data.pockets, mainPocketId: main?.id ?? '',
-      safetyMargin: this.data.settings.safetyMargin, leftover, balancesBefore: before,
+      safetyMargin: this.data.settings.safetyMargin, leftover, balancesBefore: before, takenPrev,
     });
   }
 

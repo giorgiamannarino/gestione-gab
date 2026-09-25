@@ -83,7 +83,7 @@ test('uscita Revolut con arrotondamento, annulla, piano, statistiche', async ({ 
   await expect(page.getByRole('heading', { name: 'Spese per categoria' })).toBeVisible();
 });
 
-test('piano con ricarica dei pocket Revolut e prova delle notifiche', async ({ page, context }) => {
+test('piano con ricarica dei pocket Revolut e prova delle notifiche', async ({ page }) => {
   // In Chrome con emulazione iPhone il permesso risulta sempre bloccato: lo si simula concesso.
   await page.addInitScript(() => {
     const w = window as unknown as { __notifiche: string[] };
@@ -97,6 +97,7 @@ test('piano con ricarica dei pocket Revolut e prova delle notifiche', async ({ p
   await page.getByRole('button', { name: 'Registra stipendio' }).click();
   // Con quanto è rimasto sui pocket Revolut si sposta meno: il risparmio sale sopra 991,96 €.
   await expect(page.getByText(/rimasti/).first()).toBeVisible();
+  await expect(page.getByText(/nessun prelievo: metà del budget/)).toBeVisible(); // Auto: riserva
   const text = await page.getByText(/Stipendio 2\.345,00\s€ →/).innerText();
   const saved = Number(text.match(/da parte ([\d.,]+)/)![1]!.replace(/\./g, '').replace(',', '.'));
   expect(saved).toBeGreaterThan(991.96);

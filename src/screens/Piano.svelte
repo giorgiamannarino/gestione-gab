@@ -174,7 +174,7 @@
 
 {#snippet check(l: PlanLine)}
   {@const st = status(l)}
-  {@const full = l.amount === 0}
+  {@const full = l.mode === 'topUp' && l.amount === 0}
   {@const ok = !!st || full}
   {@const to = pocket(l.toPocketId)}
   <button class="line check" class:ok disabled={st === 'manual' || full} title={st === 'manual' ? 'Già registrato con un giroconto' : undefined} onclick={() => app.togglePlanTransfer(l, app.today)} role="checkbox" aria-checked={ok}>
@@ -182,9 +182,13 @@
     {#if to}<IconTile icon={icon(to.icon)} color={color(to.color)} size="sm" />{/if}
     <span class="lname">
       {l.name}
-      {#if l.remaining !== undefined}
+      {#if l.mode === 'topUp' && l.remaining !== undefined}
         <span class="topup">
           {#if full}già a posto: rimasti {eur(l.remaining)}{:else if l.remaining !== 0}{eur(l.target)} − {eur(l.remaining)} rimasti{/if}
+        </span>
+      {:else if l.mode === 'reserve' && l.taken !== undefined}
+        <span class="topup">
+          {#if l.taken === 0}nessun prelievo: metà del budget di {eur(l.target)}{:else if l.taken < l.target}presi {eur(l.taken)} + {eur(l.amount - l.taken)}{:else}reintegra i {eur(l.taken)} presi{/if}
         </span>
       {/if}
     </span>

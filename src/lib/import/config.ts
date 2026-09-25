@@ -138,6 +138,8 @@ export function parseConfig(raw: unknown): AppConfig {
       day,
       categoryId,
       auto: f.automatico === true || undefined,
+      mode: parseMode(f.modalita, where),
+      reserveExtra: f.extra === undefined ? undefined : euro(f.extra, where),
       active: f.attivo !== false,
       order: i,
     };
@@ -154,6 +156,14 @@ export function parseConfig(raw: unknown): AppConfig {
   };
 
   return { groups, pockets, categories, voci, recurring, settings };
+}
+
+/** "ricarica" | "riserva" | "pieno" (default). */
+function parseMode(x: unknown, where: string): Recurring['mode'] {
+  if (x === undefined || x === 'pieno') return undefined;
+  if (x === 'ricarica') return 'topUp';
+  if (x === 'riserva') return 'reserve';
+  throw new ConfigError(`${where}: modalità deve essere pieno, ricarica o riserva.`);
 }
 
 export function normalizeVoce(s: string): string {

@@ -449,7 +449,25 @@
         </div>
         <Toggle label="Automatico con lo stipendio" description="Registrato da solo quando inserisci lo stipendio." checked={!!recEdit.auto} onchange={(v) => (recEdit!.auto = v || undefined)} />
         {#if app.data.pockets.find((p) => p.id === recEdit!.toPocketId)?.isRevolut}
-          <Toggle label="Ricarica solo quanto manca" description="Sottrae quello che è rimasto sul pocket. Disattiva per accumulare l'importo pieno ogni mese." checked={recEdit.topUp !== false} onchange={(v) => (recEdit!.topUp = v ? undefined : false)} />
+          <p class="flabel">Quanto spostare a inizio mese</p>
+          <Segmented
+            label="Quanto spostare a inizio mese"
+            value={recEdit.mode ?? 'full'}
+            options={[
+              { value: 'full', label: 'Pieno' },
+              { value: 'topUp', label: 'Ricarica' },
+              { value: 'reserve', label: 'Riserva' },
+            ]}
+            onchange={(v) => (recEdit!.mode = v === 'full' ? undefined : (v as 'topUp' | 'reserve'))}
+          />
+          <p class="c-3 small">
+            {#if recEdit.mode === 'topUp'}Sposta solo quanto manca rispetto a quello che è rimasto sul pocket.
+            {:else if recEdit.mode === 'reserve'}Se nel mese prima non è stato preso nulla sposta metà; se è stato preso meno dell'importo reintegra quanto preso più l'extra; altrimenti reintegra quanto preso.
+            {:else}Sposta sempre l'importo pieno, anche se sul pocket è rimasto qualcosa.{/if}
+          </p>
+          {#if recEdit.mode === 'reserve'}
+            <TextField label="Extra quando è stato preso meno dell'importo" inputmode="decimal" value={formatCents(recEdit.reserveExtra ?? 10000, { symbol: false })} onchange={(e) => (recEdit!.reserveExtra = parseEuroInput((e.currentTarget as HTMLInputElement).value) ?? undefined)} />
+          {/if}
         {/if}
       {/if}
       {#if recEdit.kind === 'debit'}
