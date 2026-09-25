@@ -313,39 +313,48 @@ test('oggi puoi spendere, scadenze annuali ed etichette', async ({ page }) => {
   await page.getByRole('button', { name: 'Annulla' }).click();
   await expect(daily).toContainText('In linea');
 
-  // Scadenza: bollo da 180 € il 10 marzo → 4 stipendi prima → 45 € a stipendio.
+  // Scadenza in Spese fisse: bollo da 180 € il 10 marzo → 5 stipendi (23 ott, nov, dic, gen, feb) → 36 € a stipendio.
   await page.getByRole('button', { name: 'Impostazioni' }).click();
-  await page.getByRole('button', { name: /Scadenze/ }).click();
+  await page.getByRole('button', { name: /Spese fisse/ }).click();
+  await expect(page.getByRole('heading', { name: 'Scadenze' })).toBeVisible();
   await page.getByRole('button', { name: 'Aggiungi una scadenza' }).click();
   const sheet = page.locator('dialog[open]');
   await sheet.getByLabel('Nome').fill('Bollo auto');
   await sheet.getByLabel('Importo').fill('180');
   await sheet.getByLabel('Data della scadenza').fill('2031-03-10');
-  await expect(sheet.getByText(/45,00\s€ a ogni stipendio \(4 prima/)).toBeVisible();
+  await expect(sheet.getByText(/36,00\s€ a ogni stipendio \(5 stipendi/)).toBeVisible();
   await sheet.getByRole('button', { name: 'Salva', exact: true }).click();
-  await page.getByRole('button', { name: 'Aggiungi ai costi fissi' }).click();
-  await expect(page.getByText(/Nei costi fissi: 45,00\s€ al mese/)).toBeVisible();
+  await expect(page.getByRole('button', { name: /Bollo auto/ })).toContainText(/36,00\s€ a stipendio \(ancora 5\)/);
 
-  // L'accantonamento mensile è nella checklist del Piano, non in Da confermare.
+  // L'accantonamento è nella checklist del Piano, sotto Scadenze, non in Da confermare.
   await page.getByRole('button', { name: 'Indietro' }).click();
   await page.getByRole('button', { name: 'Torna alla Home' }).click();
   await expect(page.getByRole('group').filter({ hasText: 'Bollo auto' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Piano', exact: true }).click();
   await page.getByLabel('Stipendio').fill('2.345');
   await page.getByRole('button', { name: 'Registra stipendio' }).click();
-  await expect(page.getByRole('checkbox', { name: /Accantonamento Bollo auto/ })).toBeVisible();
+  const bollo = page.getByRole('checkbox', { name: /Bollo auto/ });
+  await expect(bollo).toContainText('ancora 5 stipendi');
+  await expect(bollo).toContainText(/36,00\s€/);
+  await bollo.click();
+  await expect(bollo).toHaveAttribute('aria-checked', 'true');
 
-  // Il pagamento finale compare in Da confermare dai 10 giorni prima (qui: scade il 7 novembre).
-  await page.getByRole('button', { name: 'Home' }).click();
-  await page.getByRole('button', { name: 'Impostazioni' }).click();
-  await page.getByRole('button', { name: /Scadenze/ }).click();
-  await page.getByRole('button', { name: /Bollo auto/ }).first().click();
-  await page.locator('dialog[open]').getByLabel('Data della scadenza').fill('2030-11-07');
-  await page.locator('dialog[open]').getByRole('button', { name: 'Salva', exact: true }).click();
-  await page.getByRole('button', { name: 'Indietro' }).click();
-  await page.getByRole('button', { name: 'Torna alla Home' }).click();
+  // Il pagamento compare in Da confermare solo dai 7 giorni prima.
+  const setDue = async (date: string) => {
+    await page.getByRole('button', { name: 'Home' }).click();
+    await page.getByRole('button', { name: 'Impostazioni' }).click();
+    await page.getByRole('button', { name: /Spese fisse/ }).click();
+    await page.getByRole('button', { name: /Bollo auto/ }).first().click();
+    await page.locator('dialog[open]').getByLabel('Data della scadenza').fill(date);
+    await page.locator('dialog[open]').getByRole('button', { name: 'Salva', exact: true }).click();
+    await page.getByRole('button', { name: 'Indietro' }).click();
+    await page.getByRole('button', { name: 'Torna alla Home' }).click();
+  };
   const row = page.getByRole('group').filter({ hasText: 'Bollo auto' });
-  await expect(row).toContainText('scade il 7 novembre');
+  await setDue('2030-11-05'); // 8 giorni
+  await expect(row).toHaveCount(0);
+  await setDue('2030-11-04'); // 7 giorni
+  await expect(row).toContainText('scade il 4 novembre');
   await row.getByRole('button').click();
   await expect(page.getByText(/Bollo auto pagato: 180,00/)).toBeVisible();
 

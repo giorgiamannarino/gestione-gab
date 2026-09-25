@@ -4,7 +4,7 @@
  */
 import type { Cents } from './money';
 import { roundupFor } from './roundup';
-import type { Id, Pocket, Recurring } from './types';
+import type { ISODate, Id, Pocket, Recurring } from './types';
 
 export interface PlanLine {
   recurringId: Id;
@@ -20,6 +20,9 @@ export interface PlanLine {
   remaining?: Cents;
   /** Riserva: quanto è uscito dal pocket nel periodo precedente. */
   taken?: Cents;
+  /** Scadenza: data del pagamento e stipendi che restano per accantonare (questo compreso). */
+  dueDate?: ISODate;
+  paydays?: number;
 }
 
 export type AllocationMode = NonNullable<Recurring['mode']> | 'full';
@@ -55,6 +58,8 @@ export interface Plan {
   revolutTotal: Cents;
   /** Checklist: altri spostamenti (es. bollette). */
   others: PlanLine[];
+  /** Checklist: accantonamenti per le scadenze (bollo, assicurazione…). */
+  deadlines: PlanLine[];
   /** Cosa deve restare sul conto principale (addebiti e budget). */
   keep: PlanLine[];
   /** Totale di fissi e spostamenti. */
@@ -115,6 +120,8 @@ export function buildPlan(input: {
   balancesBefore?: Map<Id, Cents>;
   /** Uscite di ogni pocket nel periodo precedente: servono per le riserve. */
   takenPrev?: Map<Id, Cents>;
+  /** Accantonamenti delle scadenze per questo periodo. */
+  deadlines?: PlanLine[];
 }): Plan {
   const { recurring, pockets, mainPocketId } = input;
   const active = recurring.filter((r) => r.active).sort((a, b) => a.order - b.order);
@@ -144,14 +151,17 @@ export function buildPlan(input: {
     .filter((r) => (r.kind === 'budget' || (r.kind === 'debit' && !r.toPocketId)) && r.fromPocketId === mainPocketId)
     .map(line);
 
+  const deadlines = (input.deadlines ?? []).filter((l) => l.amount > 0);
+
   const sum = (ls: PlanLine[]) => ls.reduce((a, l) => a + l.amount, 0);
-  const fixedTotal = sum(auto) + sum(revolut) + sum(others) + sum(keep);
+  const fixedTotal = sum(auto) + sum(revolut) + sum(others) + sum(deadlines) + sum(keep);
   const margin = splitMargin(input.safetyMargin, input.leftover);
   return {
     auto,
     revolut,
     revolutTotal: sum(revolut),
     others,
+    deadlines,
     keep,
     fixedTotal,
     safetyMargin: input.safetyMargin,

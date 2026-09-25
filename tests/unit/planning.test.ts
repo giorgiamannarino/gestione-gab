@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { periodOf } from '../../src/lib/domain/dates';
-import { categoryAnomalies, dailyAllowance, deadlineMonthly, lastWeekSummary, mondayOf, nextYear, noSpendStreak, paydaysUntil, tagSummary } from '../../src/lib/domain/planning';
+import { categoryAnomalies, dailyAllowance, deadlineInstalment, lastWeekSummary, mondayOf, nextYear, noSpendStreak, paydaysUntil, tagSummary } from '../../src/lib/domain/planning';
 import { tx } from './fixtures';
 
 describe('oggi puoi spendere', () => {
@@ -36,16 +36,24 @@ describe('oggi puoi spendere', () => {
 });
 
 describe('scadenze', () => {
-  it('conta gli stipendi prima della scadenza', () => {
-    expect(paydaysUntil('2030-11-05', '2031-03-10', 23)).toBe(4); // 23 nov, dic, gen, feb
-    expect(paydaysUntil('2030-11-23', '2031-03-10', 23)).toBe(3); // oggi è già il giorno di paga
-    expect(paydaysUntil('2030-11-05', '2030-11-10', 23)).toBe(1); // nessuno stipendio prima: almeno 1
+  const nov = periodOf('2030-11-05', 23); // 23 ottobre – 22 novembre
+
+  it("conta gli stipendi da questo fino all'ultimo prima della scadenza", () => {
+    expect(paydaysUntil(nov, '2031-03-10', 23)).toBe(5); // 23 ott, nov, dic, gen, feb
+    expect(paydaysUntil(nov, '2031-02-23', 23)).toBe(5); // stipendio il giorno stesso: conta
+    expect(paydaysUntil(nov, '2030-11-10', 23)).toBe(1); // scade in questo periodo: solo questo
+    expect(paydaysUntil(nov, '2030-10-20', 23)).toBe(0); // già scaduta
   });
 
-  it('accantonamento mensile arrotondato all\'euro, al netto di quanto già messo da parte', () => {
-    expect(deadlineMonthly({ amount: 45000, dueDate: '2031-03-10' }, '2030-11-05', 23)).toMatchObject({ monthly: 11300, paydays: 4 });
-    expect(deadlineMonthly({ amount: 45000, dueDate: '2031-03-10' }, '2030-11-05', 23, 15000).monthly).toBe(7500);
-    expect(deadlineMonthly({ amount: 45000, dueDate: '2031-03-10' }, '2030-11-05', 23, 50000).monthly).toBe(0);
+  it("quota a stipendio arrotondata all'euro, al netto di quanto già accantonato", () => {
+    expect(deadlineInstalment({ amount: 45000, dueDate: '2031-03-10' }, nov, 23)).toMatchObject({ amount: 9000, paydays: 5 });
+    expect(deadlineInstalment({ amount: 45050, dueDate: '2031-03-10' }, nov, 23).amount).toBe(9100);
+    expect(deadlineInstalment({ amount: 45000, dueDate: '2031-03-10' }, nov, 23, 15000).amount).toBe(6000);
+    expect(deadlineInstalment({ amount: 45000, dueDate: '2031-03-10' }, nov, 23, 50000).amount).toBe(0);
+    // Ultimo stipendio: solo quanto manca, senza arrotondare oltre.
+    expect(deadlineInstalment({ amount: 45050, dueDate: '2030-11-10' }, nov, 23, 36400).amount).toBe(8650);
+    // Dopo la scadenza non c'è più nulla da accantonare.
+    expect(deadlineInstalment({ amount: 45000, dueDate: '2030-10-20' }, nov, 23).amount).toBe(0);
   });
 
   it('scadenza annuale: stessa data dell\'anno dopo', () => {

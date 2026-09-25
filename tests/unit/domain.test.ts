@@ -124,6 +124,14 @@ describe('piano di inizio mese', () => {
     expect(plan.leftover).toBe(6225);
   });
 
+  it('le scadenze sono nella checklist e nei fissi; quelle già coperte no', () => {
+    const dl = (name: string, amount: number) => ({ recurringId: `dl-${name}`, name, fromPocketId: 'main', toPocketId: 'love', amount, target: amount, mode: 'full' as const });
+    const plan = buildPlan({ salary: 234500, recurring, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 6225, deadlines: [dl('Bollo', 3600), dl('Assicurazione', 0)] });
+    expect(plan.deadlines.map((l) => l.name)).toEqual(['Bollo']);
+    expect(plan.fixedTotal).toBe(135304 + 3600);
+    expect(plan.saveable).toBe(99196 - 3600);
+  });
+
   it('considera il margine di sicurezza e non va mai sotto zero', () => {
     expect(buildPlan({ salary: 234500, recurring, pockets, mainPocketId: 'main', safetyMargin: 10000, leftover: 0 }).saveable).toBe(89196);
     expect(buildPlan({ salary: 100000, recurring, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 0 }).saveable).toBe(0);

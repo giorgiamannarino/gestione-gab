@@ -3,7 +3,7 @@
   import { app } from '../lib/app/store.svelte';
   import { router } from '../lib/app/router.svelte';
   import { formatCents, parseEuroInput } from '../lib/domain/money';
-  import { periodLabel } from '../lib/domain/dates';
+  import { monthName, periodLabel } from '../lib/domain/dates';
   import type { Id } from '../lib/domain/types';
   import type { PlanLine } from '../lib/domain/plan';
   import { billShortfall } from '../lib/domain/stats';
@@ -26,7 +26,7 @@
   const pocket = (id?: Id) => app.data.pockets.find((p) => p.id === id);
   const status = (l: { recurringId: Id; fromPocketId: Id; toPocketId?: Id }) => app.planStatus(l);
   const done = (recurringId: Id) => {
-    const l = [...plan.revolut, ...plan.others].find((x) => x.recurringId === recurringId);
+    const l = [...plan.revolut, ...plan.others, ...plan.deadlines].find((x) => x.recurringId === recurringId);
     return l ? !!status(l) : !!app.txByKey(`plan:${recurringId}:${key}`);
   };
 
@@ -50,7 +50,7 @@
   const saveAmount = $derived(parseEuroInput(savingInput) ?? proposal);
   const savedTx = $derived(app.txByKey(`plan:save:${key}`));
   const leftoverTx = $derived(app.txByKey(`plan:leftover:${key}`));
-  const checklistDone = $derived([...plan.revolut, ...plan.others].every((l) => done(l.recurringId)));
+  const checklistDone = $derived([...plan.revolut, ...plan.others, ...plan.deadlines].every((l) => done(l.recurringId)));
   const eur = (c: number) => (privacy.hidden ? '•••' : formatCents(c));
 
   async function registerSalary() {
@@ -131,6 +131,14 @@
     {#if plan.others.length}
       <Card title="Da spostare su Risparmi">
         {#each plan.others as l (l.recurringId)}
+          {@render check(l)}
+        {/each}
+      </Card>
+    {/if}
+
+    {#if plan.deadlines.length}
+      <Card title="Scadenze">
+        {#each plan.deadlines as l (l.recurringId)}
           {@render check(l)}
         {/each}
       </Card>
@@ -238,6 +246,10 @@
       {:else if l.mode === 'reserve' && l.taken !== undefined}
         <span class="topup">
           {#if l.taken === 0}nessun prelievo: metà del budget di {eur(l.target)}{:else if l.taken < l.target}presi {eur(l.taken)} + {eur(l.amount - l.taken)}{:else}reintegra i {eur(l.taken)} presi{/if}
+        </span>
+      {:else if l.dueDate}
+        <span class="topup">
+          su {to?.name} · scade il {Number(l.dueDate.slice(8))} {monthName(Number(l.dueDate.slice(5, 7)))} · {l.paydays === 1 ? 'ultimo stipendio prima della scadenza' : `ancora ${l.paydays} stipendi, questo compreso`}
         </span>
       {/if}
     </span>

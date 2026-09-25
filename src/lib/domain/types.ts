@@ -147,9 +147,9 @@ export interface Deadline {
   pocketId: Id;
   /** Si ripete ogni anno. */
   annual: boolean;
-  /** Alla data compare in "Da confermare". */
+  /** Dai 7 giorni prima compare in "Da confermare". */
   remind: boolean;
-  /** Spostamento mensile creato con "Aggiungi ai costi fissi". */
+  /** Solo dati vecchi: spostamento mensile nei costi fissi, tolto all'avvio (ora c'è la voce Scadenze). */
   recurringId?: Id;
 }
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import {
-    Bell, BookOpen, CalendarClock, Check, ChevronLeft, ChevronRight, CloudUpload, Download, Fingerprint, HardDrive, Layers, ListChecks, Lock, Scale,
+    Bell, BookOpen, ChevronLeft, ChevronRight, CloudUpload, Download, Fingerprint, HardDrive, Layers, ListChecks, Lock, Scale,
     SlidersHorizontal, Tags, Trash2, Wallet,
   } from '@lucide/svelte';
   import { app } from '../lib/app/store.svelte';
@@ -33,7 +33,7 @@
   const section = $derived(router.segments[1] ?? '');
   const titles: Record<string, string> = {
     backup: 'Backup e dati', blocco: 'Blocco', pocket: 'Pocket', categorie: 'Categorie', fissi: 'Spese fisse',
-    generali: 'Stipendio e piano', saldi: 'Allinea i saldi', cancella: 'Cancella i dati', promemoria: 'Promemoria', scadenze: 'Scadenze',
+    generali: 'Stipendio e piano', saldi: 'Allinea i saldi', cancella: 'Cancella i dati', promemoria: 'Promemoria',
   };
 
   // ── Backup ──
@@ -162,7 +162,7 @@
   let dlEdit = $state<(Deadline & { amountText: string }) | null>(null);
   function editDeadline(d?: Deadline) {
     const base: Deadline = d ?? {
-      id: crypto.randomUUID(), name: '', amount: 0, dueDate: app.today, pocketId: app.savingsTarget?.id ?? app.activePockets[0]?.id ?? '',
+      id: crypto.randomUUID(), name: '', amount: 0, dueDate: app.today, pocketId: app.savingsTarget?.id ?? app.activePockets.find((p) => p.id !== app.mainPocket?.id)?.id ?? '',
       annual: true, remind: true,
     };
     dlEdit = { ...($state.snapshot(base) as Deadline), amountText: base.amount ? formatCents(base.amount, { symbol: false }) : '' };
@@ -234,8 +234,7 @@
       <div class="list">
         {@render nav('pocket', Wallet, 'Pocket', `${app.activePockets.length} attivi`)}
         {@render nav('categorie', Tags, 'Categorie', `${app.data.categories.filter((c) => !c.system && !c.archived).length} categorie`)}
-        {@render nav('fissi', ListChecks, 'Spese fisse', 'Voci, importi, giorni di addebito')}
-        {@render nav('scadenze', CalendarClock, 'Scadenze', app.deadlines.length ? `${app.deadlines.length} ${app.deadlines.length === 1 ? 'scadenza' : 'scadenze'}` : 'Bollo, assicurazione, università…')}
+        {@render nav('fissi', ListChecks, 'Spese fisse', 'Voci, importi, giorni di addebito, scadenze')}
         {@render nav('generali', SlidersHorizontal, 'Stipendio e piano', `Periodo dal giorno ${app.data.settings.salaryDay}`)}
         <button class="nav-row" onclick={() => router.go('/guida')}>
           <IconTile icon={BookOpen} color="var(--accent-ink)" size="sm" />
@@ -318,35 +317,6 @@
       {/if}
       <Button variant="danger" block onclick={async () => { await lock.disable(); showToast('Blocco disattivato'); }}>Disattiva il blocco</Button>
     {/if}
-
-  {:else if section === 'scadenze'}
-    <p class="c-2 small">Spese che arrivano una volta l'anno (o una volta sola). Ti dico quanto mettere da parte a ogni stipendio per arrivarci pronto.</p>
-    {#each app.deadlines as d (d.id)}
-      {@const plan = app.deadlinePlan(d)}
-      {@const rec = d.recurringId ? app.data.recurring.find((r) => r.id === d.recurringId && r.active) : undefined}
-      <Card>
-        <button class="dl-head" onclick={() => editDeadline(d)}>
-          <span class="nav-text">
-            <span class="strong">{d.name}</span>
-            <span class="c-3 small">{formatDate(d.dueDate)}{d.annual ? ' · ogni anno' : ''} · su {pocketName(d.pocketId)}</span>
-          </span>
-          <Amount cents={d.amount} />
-        </button>
-        <p class="c-2 small top">
-          {#if plan.monthly === 0}Già coperta.{:else}Metti da parte <strong>{formatCents(plan.monthly)}</strong> a ogni stipendio ({plan.paydays} {plan.paydays === 1 ? 'stipendio' : 'stipendi'} prima della scadenza).{/if}
-        </p>
-        <div class="dl-actions">
-          {#if rec && rec.amount === plan.monthly}
-            <span class="ok-text"><Check size={14} /> Nei costi fissi: {formatCents(rec.amount)} al mese</span>
-          {:else if rec}
-            <Button variant="secondary" onclick={() => app.deadlineToFixed(d)}>Aggiorna i fissi a {formatCents(plan.monthly)}</Button>
-          {:else if plan.monthly > 0}
-            <Button variant="secondary" onclick={() => app.deadlineToFixed(d)}>Aggiungi ai costi fissi</Button>
-          {/if}
-        </div>
-      </Card>
-    {/each}
-    <Button variant="secondary" block onclick={() => editDeadline()}>Aggiungi una scadenza</Button>
 
   {:else if section === 'promemoria'}
     <Card>
@@ -434,6 +404,24 @@
       {/if}
     {/each}
     <Button variant="secondary" block onclick={() => editRecurring()}>Aggiungi una voce</Button>
+    <Card title="Scadenze">
+      <p class="c-2 small">Bollo, assicurazione, università… Divido l'importo tra gli stipendi che arrivano prima della scadenza: a ogni stipendio la quota compare nella checklist del Piano, 7 giorni prima il pagamento compare in Da confermare.</p>
+      {#each app.deadlines as d (d.id)}
+        {@const plan = app.deadlinePlan(d)}
+        <ListRow
+          title={d.name}
+          subtitle={[
+            `${formatDate(d.dueDate)}${d.annual ? ', ogni anno' : ''}`,
+            `su ${pocketName(d.pocketId)}`,
+            plan.paydays === 0 ? 'da pagare' : plan.amount === 0 ? 'già coperta' : `${formatCents(plan.amount)} a stipendio (${plan.paydays === 1 ? 'ultimo' : `ancora ${plan.paydays}`})`,
+          ].join(' · ')}
+          onclick={() => editDeadline(d)}
+        >
+          {#snippet trailing()}<Amount cents={d.amount} />{/snippet}
+        </ListRow>
+      {/each}
+      <div class="top"><Button variant="secondary" block onclick={() => editDeadline()}>Aggiungi una scadenza</Button></div>
+    </Card>
 
   {:else if section === 'generali'}
     <Card>
@@ -501,14 +489,18 @@
       <TextField label="Data della scadenza" type="date" bind:value={dlEdit.dueDate} />
       <p class="flabel">Dove accantonare (e da dove pagare)</p>
       <div class="chips">
-        {#each app.activePockets as p (p.id)}<Chip label={p.name} color={color(p.color)} selected={dlEdit.pocketId === p.id} onclick={() => (dlEdit!.pocketId = p.id)} />{/each}
+        {#each app.activePockets.filter((p) => p.id !== app.mainPocket?.id) as p (p.id)}<Chip label={p.name} color={color(p.color)} selected={dlEdit.pocketId === p.id} onclick={() => (dlEdit!.pocketId = p.id)} />{/each}
       </div>
       {#if dlAmount && dlAmount > 0}
         {@const plan = app.deadlinePlan({ ...dlEdit, amount: dlAmount })}
-        <p class="c-2 small">Da mettere da parte: <strong>{formatCents(plan.monthly)}</strong> a ogni stipendio ({plan.paydays} prima della scadenza).</p>
+        <p class="c-2 small">
+          {#if plan.paydays === 0}Nessuno stipendio prima della scadenza: non c'è niente da accantonare.
+          {:else if plan.amount === 0}Già coperta con quanto accantonato.
+          {:else}Da mettere da parte: <strong>{formatCents(plan.amount)}</strong> a ogni stipendio ({plan.paydays} {plan.paydays === 1 ? 'stipendio' : 'stipendi'} prima della scadenza, compreso questo).{/if}
+        </p>
       {/if}
       <Toggle label="Si ripete ogni anno" description="Dopo il pagamento passa alla stessa data dell'anno dopo." bind:checked={dlEdit.annual} />
-      <Toggle label="Promemoria alla data" description="Il giorno della scadenza compare in Da confermare." bind:checked={dlEdit.remind} />
+      <Toggle label="Promemoria del pagamento" description="7 giorni prima della scadenza compare in Da confermare." bind:checked={dlEdit.remind} />
       <Button size="lg" block disabled={!dlEdit.name.trim() || !dlAmount || dlAmount <= 0} onclick={saveDeadline}>Salva</Button>
       {#if app.deadlines.some((x) => x.id === dlEdit!.id)}
         <Button variant="ghost" onclick={async () => { await app.deleteDeadline(dlEdit!.id); dlEdit = null; showToast('Scadenza eliminata'); }}>Elimina la scadenza</Button>
@@ -722,24 +714,6 @@
   }
   .swatch.on {
     outline-color: var(--c);
-  }
-  .dl-head {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-    width: 100%;
-    text-align: left;
-  }
-  .dl-actions {
-    margin-top: var(--sp-3);
-  }
-  .ok-text {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--positive);
-    font-size: var(--fs-callout);
-    font-weight: var(--fw-medium);
   }
   .steps {
     margin: var(--sp-2) 0 0;

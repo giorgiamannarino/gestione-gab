@@ -1,7 +1,7 @@
 /**
  * Strumenti di pianificazione: quanto si può spendere al giorno, scadenze annuali, etichette.
  */
-import { addDays, parseISODate, periodOf, type Period } from './dates';
+import { addDays, parseISODate, shiftPeriod, type Period } from './dates';
 import type { Cents } from './money';
 import type { Deadline, ISODate, Transaction } from './types';
 
@@ -34,29 +34,26 @@ export function dailyAllowance(balance: Cents, spentSoFar: Cents, today: ISODate
   return { today: Math.max(0, today_), overBy: raw < 0 ? -raw : 0, daily, daysLeft, dayIndex, pace };
 }
 
-/** Quanti stipendi arrivano da domani fino alla scadenza compresa (almeno 1). */
-export function paydaysUntil(today: ISODate, due: ISODate, salaryDay: number): number {
+/**
+ * Stipendi da quello del periodo `p` (compreso) fino all'ultimo prima della scadenza
+ * (anche lo stesso giorno). 0 se lo stipendio del periodo arriva già dopo la scadenza.
+ */
+export function paydaysUntil(p: Period, due: ISODate, salaryDay: number): number {
   let n = 0;
-  let p = periodOf(addDays(today, 1), salaryDay);
-  // Primo stipendio utile: l'inizio del periodo successivo a oggi (o oggi stesso se è il giorno di paga).
-  let next = p.start > today ? p.start : addDays(p.end, 1);
-  while (next <= due) {
-    n++;
-    p = periodOf(next, salaryDay);
-    next = addDays(p.end, 1);
-  }
-  return Math.max(1, n);
+  for (let q = p; q.start <= due; q = shiftPeriod(q, 1, salaryDay)) n++;
+  return n;
 }
 
 /**
- * Accantonamento per una scadenza: quanto manca (importo − già nel pocket dedicato, se indicato)
- * diviso gli stipendi che arrivano prima della scadenza, arrotondato all'euro in su.
+ * Accantonamento per una scadenza nel periodo `p`: quanto manca (importo − già accantonato
+ * negli stipendi precedenti) diviso gli stipendi che restano, arrotondato all'euro in su
+ * (mai oltre quanto manca). Dopo l'ultimo stipendio prima della scadenza è 0.
  */
-export function deadlineMonthly(d: Pick<Deadline, 'amount' | 'dueDate'>, today: ISODate, salaryDay: number, alreadySaved = 0) {
-  const missing = Math.max(0, d.amount - Math.max(0, alreadySaved));
-  const paydays = paydaysUntil(today, d.dueDate, salaryDay);
-  const monthly = missing === 0 ? 0 : Math.ceil(missing / paydays / 100) * 100;
-  return { monthly, paydays, missing, daysLeft: daysBetween(today, d.dueDate) };
+export function deadlineInstalment(d: Pick<Deadline, 'amount' | 'dueDate'>, p: Period, salaryDay: number, saved = 0) {
+  const missing = Math.max(0, d.amount - Math.max(0, saved));
+  const paydays = paydaysUntil(p, d.dueDate, salaryDay);
+  const amount = missing === 0 || paydays === 0 ? 0 : Math.min(missing, Math.ceil(missing / paydays / 100) * 100);
+  return { amount, paydays, missing };
 }
 
 /** Stessa data dell'anno dopo (29 febbraio → 28). */
