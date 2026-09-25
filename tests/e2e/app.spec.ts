@@ -276,6 +276,23 @@ test('bollette: "Non ancora" per 5 giorni, ultimo giorno si chiede conferma e si
   await expect(page.getByRole('button', { name: /^Fondo bollette/ })).toContainText('100,00');
 });
 
+test('piano: con lo stipendio inserito a parte non propone "Metti da parte" né l\'avanzo', async ({ page }) => {
+  await restoreExample(page);
+  // Stipendio aggiunto a mano come entrata, fuori dal Piano.
+  await page.getByRole('button', { name: 'Nuovo movimento' }).click();
+  await page.getByRole('radio', { name: 'Entrata' }).click();
+  await page.getByLabel('Descrizione').fill('Stipendio');
+  await page.getByLabel('Descrizione').blur(); // voce già usata: pocket e categoria si compilano da soli
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Stipendio', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  for (const k of ['2', '3', '4', '5']) await page.getByRole('group', { name: 'Tastierino numerico' }).getByRole('button', { name: k, exact: true }).click();
+  await page.getByRole('button', { name: 'Salva', exact: true }).click();
+
+  await page.getByRole('button', { name: 'Piano', exact: true }).click();
+  await expect(page.getByText(/Stipendio 2\.345,00\s€ →/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Metti da parte' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Avanzo del periodo precedente' })).toHaveCount(0);
+});
+
 test('pagina del pocket con previsione e saluto', async ({ page }) => {
   await restoreExample(page);
   await expect(page.getByRole('heading', { name: 'Buongiorno' })).toBeVisible(); // ore 10

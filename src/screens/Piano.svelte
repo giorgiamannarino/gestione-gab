@@ -18,6 +18,9 @@
 
   const key = $derived(app.period.key);
   const salaryTx = $derived(app.salaryTx);
+  // Stipendio inserito fuori dal Piano (importato o a mano): gli spostamenti del mese sono già fatti,
+  // quindi "Metti da parte" e "Avanzo del periodo precedente" non servono.
+  const salaryFromPlan = $derived(!!salaryTx?.autoKey?.startsWith('salary:'));
   const salary = $derived(salaryTx ? salaryTx.legs.reduce((a, l) => a + l.amount, 0) : 0);
   const plan = $derived(app.planFor(salary));
   const pocket = (id?: Id) => app.data.pockets.find((p) => p.id === id);
@@ -164,7 +167,7 @@
       </Card>
     {/if}
 
-    {#if app.savingsTarget}
+    {#if app.savingsTarget && salaryFromPlan}
       <Card title="Metti da parte">
         <p class="c-2 small">
           Proposta: sposta su {app.savingsTarget.name} quello che avanza dopo fissi e pocket{billInfo?.shortfall ? `, meno i ${eur(billInfo.shortfall)} che serviranno per le bollette` : ''}.
