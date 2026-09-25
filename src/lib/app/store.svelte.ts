@@ -96,7 +96,7 @@ class AppStore {
 
   async saveDeadline(d: Deadline): Promise<void> {
     const list = (this.data.settings.deadlines ?? []).filter((x) => x.id !== d.id);
-    await this.updateSettings({ deadlines: [...list, $state.snapshot(d) as Deadline] });
+    await this.updateSettings({ deadlines: [...list, d] });
   }
 
   async deleteDeadline(id: Id): Promise<void> {
@@ -492,7 +492,9 @@ class AppStore {
   }
 
   async updateSettings(patch: Partial<Settings>): Promise<void> {
-    await saveSettings(this.db!, { ...$state.snapshot(this.data.settings), ...patch });
+    // Copia semplice anche della modifica: può contenere dati reattivi (es. le scadenze già salvate),
+    // che IndexedDB non sa copiare.
+    await saveSettings(this.db!, $state.snapshot({ ...this.data.settings, ...patch }) as Settings);
     await this.reload();
   }
 

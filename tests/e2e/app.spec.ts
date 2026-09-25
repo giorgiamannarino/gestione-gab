@@ -425,6 +425,24 @@ test('importi con i decimali: scadenze, spese fisse, errori chiari', async ({ pa
   await sheet.getByRole('button', { name: 'Salva', exact: true }).click();
   await expect(page.getByRole('button', { name: /Bollo auto/ })).toContainText(/180,50\s€/);
 
+  // Seconda scadenza, modifica della prima ed eliminazione: con altre scadenze già salvate.
+  await page.getByRole('button', { name: 'Aggiungi una scadenza' }).click();
+  await sheet.getByLabel('Nome').fill('Assicurazione');
+  await sheet.getByLabel('Importo').fill('420,30');
+  await sheet.getByLabel('Data della scadenza').fill('2031-06-15');
+  await sheet.getByRole('button', { name: 'Salva', exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Assicurazione.*2031/ })).toContainText(/420,30\s€/);
+  await expect(page.getByRole('button', { name: /Bollo auto/ })).toBeVisible();
+  await page.getByRole('button', { name: /Bollo auto/ }).click();
+  await sheet.getByLabel('Importo').fill('190');
+  await sheet.getByRole('button', { name: 'Salva', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Bollo auto/ })).toContainText(/190,00\s€/);
+  await page.getByRole('button', { name: /Bollo auto/ }).click();
+  await sheet.getByRole('button', { name: 'Elimina la scadenza' }).click();
+  await expect(page.getByRole('button', { name: /Bollo auto/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Assicurazione.*2031/ })).toBeVisible();
+
   // Spesa fissa con il punto come separatore decimale.
   await page.getByRole('button', { name: 'Aggiungi una voce' }).click();
   await sheet.getByLabel('Nome').fill('Palestra');
