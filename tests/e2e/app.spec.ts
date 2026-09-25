@@ -147,6 +147,19 @@ test('riepilogo del mese e guida', async ({ page }) => {
   await expect(page.getByRole('cell', { name: /Saldi: si calcolano sempre/ })).toBeVisible();
 });
 
+test('la barra in basso resta attaccata al fondo mentre si scorre', async ({ page }) => {
+  await restoreExample(page);
+  const nav = page.getByRole('navigation', { name: 'Navigazione principale' });
+  const vh = page.viewportSize()!.height;
+  for (const y of [0, 400, 100000]) {
+    await page.locator('main').evaluate((m, top) => m.scrollTo({ top }), y);
+    await page.mouse.wheel(0, 300); // tenta anche di far scorrere la pagina intera
+    const box = (await nav.boundingBox())!;
+    expect(Math.round(box.y + box.height)).toBe(vh);
+  }
+  expect(await page.evaluate(() => window.scrollY)).toBe(0); // la pagina non scorre, solo il contenuto
+});
+
 test('pagina del pocket con previsione e saluto', async ({ page }) => {
   await restoreExample(page);
   await expect(page.getByRole('heading', { name: 'Buongiorno' })).toBeVisible(); // ore 10

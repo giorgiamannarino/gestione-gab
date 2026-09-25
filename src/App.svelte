@@ -38,7 +38,7 @@
 {:else if lock.locked}
   <LockScreen />
 {:else}
-  <div class="shell" class:covered={lock.hidden} aria-hidden={lock.hidden}>
+  <div class="shell" class:layout={app.onboarded} class:covered={lock.hidden} aria-hidden={lock.hidden}>
     {#if updater.needRefresh}
       <div class="update">
         <InlineMessage tone="info" title="Nuova versione disponibile">
@@ -51,7 +51,8 @@
     {#if !app.onboarded}
       <Onboarding />
     {:else}
-      <main class:with-tabs={showTabs}>
+      <main>
+        <div class="content">
         {#key first}
           {#if first === 'movimenti'}<Movimenti />
           {:else if first === 'piano'}<Piano />
@@ -62,6 +63,7 @@
           {:else if first === 'pocket'}{#key router.segments[1]}<Pocket />{/key}
           {:else}<Home />{/if}
         {/key}
+        </div>
       </main>
       {#if showTabs}
         <div class="tabs">
@@ -83,18 +85,31 @@
   .fatal {
     padding: calc(var(--sp-8) + env(safe-area-inset-top)) var(--gutter);
   }
-  main {
+  /*
+   * Layout a schermo fisso: scorre solo <main>, la tab bar è l'ultimo elemento della colonna.
+   * Niente position: fixed, che su iPhone si stacca dal fondo (rimbalzo, tastiera, barra di Safari).
+   */
+  .shell.layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .layout main {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .content {
     max-width: 640px;
     margin: 0 auto;
   }
-  main.with-tabs {
-    padding-bottom: calc(88px + env(safe-area-inset-bottom));
-  }
   .tabs {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    flex: none;
+    position: relative;
     z-index: 20;
   }
   .tabs :global(nav) {
@@ -102,8 +117,8 @@
     margin: 0 auto;
   }
   .update {
-    position: sticky;
-    top: 0;
+    flex: none;
+    position: relative;
     z-index: 30;
     padding: calc(var(--sp-2) + env(safe-area-inset-top)) var(--gutter) var(--sp-2);
     background: var(--bg);

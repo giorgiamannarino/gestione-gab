@@ -5,6 +5,8 @@ class Router {
   constructor() {
     window.addEventListener('hashchange', () => {
       this.path = this.read();
+      // Scorre il contenitore dell'app (non la pagina, che è ferma) e, per sicurezza, la finestra.
+      document.querySelector('main')?.scrollTo({ top: 0 });
       window.scrollTo({ top: 0 });
     });
   }
