@@ -1,7 +1,7 @@
 <!-- Allinea i saldi: inserisci il saldo reale, l'app crea le rettifiche per la differenza. -->
 <script lang="ts">
   import { app } from '../../lib/app/store.svelte';
-  import { formatCents, parseEuroInput } from '../../lib/domain/money';
+  import { euroInputError, formatCents, parseEuroInput } from '../../lib/domain/money';
   import type { Id } from '../../lib/domain/types';
   import { color, icon } from '../../lib/ui/icons';
   import Amount from '../../ui/Amount.svelte';
@@ -19,7 +19,10 @@
   let values = $state<Record<Id, string>>({});
   let busy = $state(false);
   const pockets = $derived(app.activePockets.filter((p) => p.role !== 'investment'));
-  const errors = $derived(Object.fromEntries(Object.entries(values).filter(([, v]) => v.trim() && parseEuroInput(v) === null).map(([k]) => [k, true])));
+  // I saldi possono essere zero o negativi.
+  const errors = $derived(
+    Object.fromEntries(Object.entries(values).map(([k, v]) => [k, euroInputError(v, { optional: true, allowZero: true, allowNegative: true })]).filter(([, e]) => e)),
+  );
   const changes = $derived(
     pockets
       .map((p) => ({ p, real: parseEuroInput(values[p.id] ?? '') }))
@@ -50,7 +53,8 @@
       </div>
       <input
         class="input"
-        class:err={errors[p.id]}
+        class:err={!!errors[p.id]}
+        aria-invalid={!!errors[p.id]}
         inputmode="decimal"
         placeholder={formatCents(cur, { symbol: false })}
         aria-label="Saldo reale di {p.name}"
@@ -58,6 +62,9 @@
       />
     </div>
   {/each}
+  {#if Object.keys(errors).length}
+    <p class="hint error" role="alert">{Object.values(errors)[0]} Controlla i saldi in rosso.</p>
+  {/if}
   <p class="hint">Lascia vuoto un pocket se il saldo è già giusto.</p>
   <Button size="lg" block disabled={busy || (!allowEmpty && changes.length === 0) || Object.keys(errors).length > 0} loading={busy} onclick={apply}>
     {changes.length ? `${cta} (${changes.length})` : allowEmpty ? 'Continua: i saldi sono giusti' : cta}
@@ -116,5 +123,9 @@
     font-size: var(--fs-caption);
     color: var(--text-3);
     margin: var(--sp-2) 0 var(--sp-3);
+  }
+  .hint.error {
+    color: var(--negative);
+    margin-bottom: 0;
   }
 </style>

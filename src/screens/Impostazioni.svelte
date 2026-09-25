@@ -9,7 +9,8 @@
   import { getTheme, setTheme, type ThemeChoice } from '../lib/ui/theme';
   import { notify, notifyState, requestNotify, REMINDER_TEXT, type NotifyState } from '../lib/app/notify';
   import { formatDate, toISODate } from '../lib/domain/dates';
-  import { formatCents, parseEuroInput } from '../lib/domain/money';
+  import { euroInputError, formatCents, parseEuroInput } from '../lib/domain/money';
+  import { DEFAULT_RESERVE_EXTRA } from '../lib/domain/plan';
   import type { Category, Deadline, Id, PaletteColor, Pocket, Recurring } from '../lib/domain/types';
   import { biometricAvailable } from '../lib/security/biometric';
   import { lock } from '../lib/security/lock.svelte';
@@ -125,18 +126,38 @@
   }
 
   // ── Spese fisse ──
-  let recEdit = $state<(Recurring & { amountText: string }) | null>(null);
+  let recEdit = $state<(Recurring & { amountText: string; extraText: string }) | null>(null);
+  let recTried = $state(false);
   const recKinds = { debit: 'Addebito', allocation: 'Spostamento', budget: 'Budget' } as const;
   function editRecurring(r?: Recurring) {
     const base: Recurring = r ?? { id: crypto.randomUUID(), name: '', kind: 'debit', amount: 0, fromPocketId: app.mainPocket?.id ?? '', active: true, order: app.data.recurring.length };
-    recEdit = { ...$state.snapshot(base), amountText: base.amount ? formatCents(base.amount, { symbol: false }) : '' };
+    recEdit = {
+      ...$state.snapshot(base),
+      amountText: base.amount ? formatCents(base.amount, { symbol: false }) : '',
+      extraText: formatCents(base.reserveExtra ?? DEFAULT_RESERVE_EXTRA, { symbol: false }),
+    };
+    recTried = false;
   }
-  const recAmountError = $derived(recEdit && !recEdit.amountFromDebits && recEdit.amountText && parseEuroInput(recEdit.amountText) === null ? 'Importo non valido.' : '');
+  // Gli errori compaiono mentre si scrive, o su tutti i campi dopo aver provato a salvare.
+  const shown = (text: string, error: string, tried: boolean) => (text.trim() || tried ? error : '');
+  const recErrors = $derived.by(() => {
+    if (!recEdit) return { name: '', amount: '', extra: '', day: '' };
+    const extraUsed = recEdit.kind === 'allocation' && recEdit.mode === 'reserve';
+    return {
+      name: recEdit.name.trim() ? '' : 'Scrivi il nome.',
+      amount: recEdit.amountFromDebits ? '' : euroInputError(recEdit.amountText),
+      extra: extraUsed ? euroInputError(recEdit.extraText, { allowZero: true }) : '',
+      day: recEdit.kind === 'debit' && recEdit.day !== undefined && !(Number.isInteger(recEdit.day) && recEdit.day >= 1 && recEdit.day <= 31) ? 'Scrivi un giorno da 1 a 31.' : '',
+    };
+  });
   async function saveRecurring() {
-    if (!recEdit || !recEdit.name.trim()) return;
-    const { amountText, ...r } = recEdit;
+    if (!recEdit) return;
+    recTried = true;
+    if (Object.values(recErrors).some(Boolean)) return;
+    const { amountText, extraText, ...r } = recEdit;
     const amount = r.amountFromDebits ? 0 : (parseEuroInput(amountText) ?? 0);
-    await app.put('recurring', { ...r, name: r.name.trim(), amount, day: r.kind === 'debit' ? r.day : undefined, toPocketId: r.kind === 'budget' ? undefined : r.toPocketId, categoryId: r.kind === 'debit' && r.toPocketId ? undefined : r.categoryId });
+    const reserveExtra = r.kind === 'allocation' && r.mode === 'reserve' ? (parseEuroInput(extraText) ?? undefined) : r.reserveExtra;
+    await app.put('recurring', { ...r, name: r.name.trim(), amount, reserveExtra, day: r.kind === 'debit' ? r.day : undefined, toPocketId: r.kind === 'budget' ? undefined : r.toPocketId, categoryId: r.kind === 'debit' && r.toPocketId ? undefined : r.categoryId });
     recEdit = null;
     showToast('Voce salvata', { tone: 'success' });
   }
@@ -146,30 +167,44 @@
   let margin = $state(formatCents(app.data.settings.safetyMargin, { symbol: false }));
   let billMonth = $state(app.data.settings.nextBill?.month ?? '');
   let billAmount = $state(app.data.settings.nextBill ? formatCents(app.data.settings.nextBill.amount, { symbol: false }) : '');
+  const genErrors = $derived({
+    day: /^\s*\d{1,2}\s*$/.test(salaryDay) && Number(salaryDay) >= 1 && Number(salaryDay) <= 31 ? '' : 'Scrivi un giorno da 1 a 31.',
+    // Vuoto = nessun margine.
+    margin: euroInputError(margin, { optional: true, allowZero: true }),
+    bill: euroInputError(billAmount, { optional: true }),
+  });
   async function saveGeneral() {
-    const day = Number(salaryDay);
-    const m = parseEuroInput(margin);
-    const b = parseEuroInput(billAmount);
-    if (!(day >= 1 && day <= 31) || m === null) {
-      showToast('Controlla i valori inseriti', { tone: 'error' });
+    if (Object.values(genErrors).some(Boolean)) {
+      showToast('Controlla i valori in rosso', { tone: 'error' });
       return;
     }
-    await app.updateSettings({ salaryDay: day, safetyMargin: m, nextBill: billMonth && b ? { month: billMonth, amount: b } : undefined });
+    const b = parseEuroInput(billAmount);
+    await app.updateSettings({ salaryDay: Number(salaryDay), safetyMargin: parseEuroInput(margin) ?? 0, nextBill: billMonth && b ? { month: billMonth, amount: b } : undefined });
     showToast('Impostazioni salvate', { tone: 'success' });
   }
 
   // ── Scadenze ──
   let dlEdit = $state<(Deadline & { amountText: string }) | null>(null);
+  let dlTried = $state(false);
   function editDeadline(d?: Deadline) {
     const base: Deadline = d ?? {
       id: crypto.randomUUID(), name: '', amount: 0, dueDate: app.today, pocketId: app.savingsTarget?.id ?? app.activePockets.find((p) => p.id !== app.mainPocket?.id)?.id ?? '',
       annual: true, remind: true,
     };
     dlEdit = { ...($state.snapshot(base) as Deadline), amountText: base.amount ? formatCents(base.amount, { symbol: false }) : '' };
+    dlTried = false;
   }
   const dlAmount = $derived(dlEdit ? parseEuroInput(dlEdit.amountText) : null);
+  const dlErrors = $derived({
+    name: dlEdit?.name.trim() ? '' : 'Scrivi il nome.',
+    amount: dlEdit ? euroInputError(dlEdit.amountText) : '',
+    date: dlEdit?.dueDate ? '' : 'Scegli la data della scadenza.',
+    pocket: dlEdit && app.data.pockets.some((p) => p.id === dlEdit!.pocketId) ? '' : 'Scegli dove accantonare.',
+  });
   async function saveDeadline() {
-    if (!dlEdit || !dlEdit.name.trim() || !dlAmount || dlAmount <= 0) return;
+    if (!dlEdit) return;
+    dlTried = true;
+    if (Object.values(dlErrors).some(Boolean) || dlAmount === null) return;
     const { amountText: _a, ...d } = dlEdit;
     await app.saveDeadline({ ...d, name: d.name.trim(), amount: dlAmount });
     dlEdit = null;
@@ -426,8 +461,8 @@
   {:else if section === 'generali'}
     <Card>
       <div class="stack">
-        <TextField label="Giorno dello stipendio" inputmode="numeric" bind:value={salaryDay} hint="Il periodo va da questo giorno al giorno prima del mese dopo." />
-        <TextField label="Margine di sicurezza su {app.mainPocket?.name ?? 'conto principale'}" inputmode="decimal" bind:value={margin} hint="Resta sempre sul conto: non viene proposto come risparmio." />
+        <TextField label="Giorno dello stipendio" inputmode="numeric" bind:value={salaryDay} error={genErrors.day} hint="Il periodo va da questo giorno al giorno prima del mese dopo." />
+        <TextField label="Margine di sicurezza su {app.mainPocket?.name ?? 'conto principale'}" inputmode="decimal" bind:value={margin} error={genErrors.margin} hint="Resta sempre sul conto: non viene proposto come risparmio." />
         <p class="flabel">"Oggi puoi spendere" in Home, su</p>
         <div class="chips">
           <Chip label="Nessuno" selected={app.data.settings.dailyPocketId === 'none'} onclick={() => app.updateSettings({ dailyPocketId: 'none' })} />
@@ -436,7 +471,7 @@
           {/each}
         </div>
         <TextField label="Mese della prossima bolletta" type="month" bind:value={billMonth} />
-        <TextField label="Importo stimato della bolletta" inputmode="decimal" bind:value={billAmount} />
+        <TextField label="Importo stimato della bolletta" inputmode="decimal" bind:value={billAmount} error={genErrors.bill} />
         <Button size="lg" block onclick={saveGeneral}>Salva</Button>
       </div>
     </Card>
@@ -484,14 +519,15 @@
 <BottomSheet open={!!dlEdit} title="Scadenza" onclose={() => (dlEdit = null)}>
   {#if dlEdit}
     <div class="stack">
-      <TextField label="Nome" placeholder="Es. Bollo auto, Assicurazione, Università" bind:value={dlEdit.name} />
-      <TextField label="Importo" inputmode="decimal" bind:value={dlEdit.amountText} error={dlEdit.amountText.trim() && dlAmount === null ? 'Importo non valido.' : ''} />
-      <TextField label="Data della scadenza" type="date" bind:value={dlEdit.dueDate} />
+      <TextField label="Nome" placeholder="Es. Bollo auto, Assicurazione, Università" bind:value={dlEdit.name} error={dlTried ? dlErrors.name : ''} />
+      <TextField label="Importo" inputmode="decimal" placeholder="180,50" bind:value={dlEdit.amountText} error={shown(dlEdit.amountText, dlErrors.amount, dlTried)} />
+      <TextField label="Data della scadenza" type="date" bind:value={dlEdit.dueDate} error={dlTried ? dlErrors.date : ''} />
       <p class="flabel">Dove accantonare (e da dove pagare)</p>
       <div class="chips">
         {#each app.activePockets.filter((p) => p.id !== app.mainPocket?.id) as p (p.id)}<Chip label={p.name} color={color(p.color)} selected={dlEdit.pocketId === p.id} onclick={() => (dlEdit!.pocketId = p.id)} />{/each}
       </div>
-      {#if dlAmount && dlAmount > 0}
+      {#if dlTried && dlErrors.pocket}<p class="err small">{dlErrors.pocket}</p>{/if}
+      {#if dlAmount && dlAmount > 0 && dlEdit.dueDate}
         {@const plan = app.deadlinePlan({ ...dlEdit, amount: dlAmount })}
         <p class="c-2 small">
           {#if plan.paydays === 0}Nessuno stipendio prima della scadenza: non c'è niente da accantonare.
@@ -501,7 +537,7 @@
       {/if}
       <Toggle label="Si ripete ogni anno" description="Dopo il pagamento passa alla stessa data dell'anno dopo." bind:checked={dlEdit.annual} />
       <Toggle label="Promemoria del pagamento" description="7 giorni prima della scadenza compare in Da confermare." bind:checked={dlEdit.remind} />
-      <Button size="lg" block disabled={!dlEdit.name.trim() || !dlAmount || dlAmount <= 0} onclick={saveDeadline}>Salva</Button>
+      <Button size="lg" block onclick={saveDeadline}>Salva</Button>
       {#if app.deadlines.some((x) => x.id === dlEdit!.id)}
         <Button variant="ghost" onclick={async () => { await app.deleteDeadline(dlEdit!.id); dlEdit = null; showToast('Scadenza eliminata'); }}>Elimina la scadenza</Button>
       {/if}
@@ -524,10 +560,10 @@
 <BottomSheet open={!!recEdit} title="Spesa fissa" onclose={() => (recEdit = null)}>
   {#if recEdit}
     <div class="stack">
-      <TextField label="Nome" bind:value={recEdit.name} />
+      <TextField label="Nome" bind:value={recEdit.name} error={recTried ? recErrors.name : ''} />
       <Segmented label="Tipo" bind:value={recEdit.kind} options={Object.entries(recKinds).map(([value, label]) => ({ value: value as Recurring['kind'], label }))} />
       {#if !recEdit.amountFromDebits}
-        <TextField label="Importo" inputmode="decimal" bind:value={recEdit.amountText} error={recAmountError} />
+        <TextField label="Importo" inputmode="decimal" placeholder="12,99" bind:value={recEdit.amountText} error={shown(recEdit.amountText, recErrors.amount, recTried)} />
       {:else}
         <p class="c-3 small">Importo calcolato dagli addebiti del pocket più i loro arrotondamenti.</p>
       {/if}
@@ -559,12 +595,12 @@
             {:else}Sposta sempre l'importo pieno, anche se sul pocket è rimasto qualcosa.{/if}
           </p>
           {#if recEdit.mode === 'reserve'}
-            <TextField label="Extra quando è stato preso meno dell'importo" inputmode="decimal" value={formatCents(recEdit.reserveExtra ?? 10000, { symbol: false })} onchange={(e) => (recEdit!.reserveExtra = parseEuroInput((e.currentTarget as HTMLInputElement).value) ?? undefined)} />
+            <TextField label="Extra quando è stato preso meno dell'importo" inputmode="decimal" bind:value={recEdit.extraText} error={shown(recEdit.extraText, recErrors.extra, recTried)} />
           {/if}
         {/if}
       {/if}
       {#if recEdit.kind === 'debit'}
-        <TextField label="Giorno di addebito" inputmode="numeric" value={recEdit.day ? String(recEdit.day) : ''} oninput={(e) => (recEdit!.day = Number((e.currentTarget as HTMLInputElement).value) || undefined)} hint="Il giorno in cui te lo propongo da confermare." />
+        <TextField label="Giorno di addebito" inputmode="numeric" value={recEdit.day ? String(recEdit.day) : ''} oninput={(e) => { const v = (e.currentTarget as HTMLInputElement).value.trim(); recEdit!.day = v ? Number(v) : undefined; }} error={recErrors.day} hint="Il giorno in cui te lo propongo da confermare." />
         <p class="flabel">Verso un altro pocket (facoltativo)</p>
         <p class="c-3 small">Se lo scegli, alla conferma registro un giroconto invece di una spesa (es. Generali → Fondo Pensione).</p>
         <div class="chips">
@@ -578,7 +614,7 @@
         </div>
       {/if}
       <Toggle label="Attiva" bind:checked={recEdit.active} />
-      <Button size="lg" block disabled={!recEdit.name.trim() || !!recAmountError} onclick={saveRecurring}>Salva</Button>
+      <Button size="lg" block onclick={saveRecurring}>Salva</Button>
       {#if app.data.recurring.some((r) => r.id === recEdit!.id)}
         <Button variant="ghost" onclick={async () => { await app.remove('recurring', recEdit!.id); recEdit = null; showToast('Voce eliminata'); }}>Elimina la voce</Button>
       {/if}
@@ -680,6 +716,9 @@
     font-size: var(--fs-caption);
     color: var(--text-3);
     margin-top: var(--sp-3);
+  }
+  .err {
+    color: var(--negative);
   }
   .flabel {
     font-size: var(--fs-caption);

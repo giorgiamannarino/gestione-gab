@@ -3,7 +3,7 @@
   import { app } from '../lib/app/store.svelte';
   import { balanceSeries } from '../lib/domain/balances';
   import { monthName, periodLabel, periodShortName, shiftPeriod, inPeriod } from '../lib/domain/dates';
-  import { parseEuroInput } from '../lib/domain/money';
+  import { euroInputError, parseEuroInput } from '../lib/domain/money';
   import { dailySpending, spendingByCategory, spendingByPocket, totalIncome, totalSpending } from '../lib/domain/stats';
   import { formatCents } from '../lib/domain/money';
   import { privacy } from '../lib/ui/privacy.svelte';
@@ -101,10 +101,8 @@
   let valError = $state('');
   async function saveValuation() {
     const v = parseEuroInput(valAmount);
-    if (!v || v <= 0 || !valPocket) {
-      valError = 'Scrivi il valore, per esempio 3.250,00.';
-      return;
-    }
+    valError = valPocket ? euroInputError(valAmount) : 'Scegli il fondo.';
+    if (valError || !v) return;
     await app.put('valuations', { id: crypto.randomUUID(), pocketId: valPocket, date: valDate, value: v });
     valOpen = false;
     valAmount = '';

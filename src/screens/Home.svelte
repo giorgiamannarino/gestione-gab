@@ -10,7 +10,7 @@
   import { categoryAnomalies, dailyAllowance, lastWeekSummary, noSpendStreak } from '../lib/domain/planning';
   import { spendingByCategory } from '../lib/domain/stats';
   import { shiftPeriod } from '../lib/domain/dates';
-  import { parseEuroInput } from '../lib/domain/money';
+  import { euroInputError, parseEuroInput } from '../lib/domain/money';
   import BottomSheet from '../ui/BottomSheet.svelte';
   import TextField from '../ui/TextField.svelte';
   import type { Pocket } from '../lib/domain/types';
@@ -357,7 +357,7 @@
 
 <BottomSheet bind:open={billOpen} title="Bollette">
   <div class="bill">
-    <TextField label="Quanto è uscito?" inputmode="decimal" bind:value={billAmount} error={billAmount.trim() && billCents === null ? 'Scrivi un importo valido, es. 187,40.' : ''} />
+    <TextField label="Quanto è uscito?" inputmode="decimal" bind:value={billAmount} error={billAmount.trim() ? euroInputError(billAmount) : ''} />
     <TextField label="Data" type="date" bind:value={billDate} />
     <p class="c-3 small">
       Esce da {billsPocket?.name ?? 'Fondo bollette'}. Per queste bollette erano stati messi da parte {privacy.hidden ? '•••' : formatCents(billFund)}{billFundNow > billFund ? `; gli altri ${privacy.hidden ? '•••' : formatCents(billFundNow - billFund)} nel fondo sono per le bollette successive e restano lì` : ''}.

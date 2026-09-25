@@ -406,6 +406,33 @@ test('pagina del pocket con previsione e saluto', async ({ page }) => {
   await expect(titles.filter({ hasText: 'Carburante' })).toHaveCount(0); // spesa di un altro pocket
 });
 
+test('importi con i decimali: scadenze, spese fisse, errori chiari', async ({ page }) => {
+  await restoreExample(page);
+  await page.getByRole('button', { name: 'Impostazioni' }).click();
+  await page.getByRole('button', { name: /Spese fisse/ }).click();
+
+  // Scadenza con i centesimi, scritta con il simbolo dell'euro.
+  await page.getByRole('button', { name: 'Aggiungi una scadenza' }).click();
+  const sheet = page.locator('dialog[open]');
+  await sheet.getByRole('button', { name: 'Salva', exact: true }).click();
+  await expect(sheet.getByText('Scrivi il nome.')).toBeVisible();
+  await expect(sheet.getByText(/Scrivi l'importo/)).toBeVisible();
+  await sheet.getByLabel('Nome').fill('Bollo auto');
+  await sheet.getByLabel('Importo').pressSequentially('180,555');
+  await expect(sheet.getByText(/Al massimo due decimali/)).toBeVisible();
+  await sheet.getByLabel('Importo').fill('180,50 €');
+  await sheet.getByLabel('Data della scadenza').fill('2031-03-10');
+  await sheet.getByRole('button', { name: 'Salva', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Bollo auto/ })).toContainText(/180,50\s€/);
+
+  // Spesa fissa con il punto come separatore decimale.
+  await page.getByRole('button', { name: 'Aggiungi una voce' }).click();
+  await sheet.getByLabel('Nome').fill('Palestra');
+  await sheet.getByLabel('Importo').fill('34.90');
+  await sheet.getByRole('button', { name: 'Salva', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Palestra/ })).toContainText(/34,90\s€/);
+});
+
 test('blocco con PIN', async ({ page }) => {
   await restoreExample(page);
   await page.getByRole('button', { name: 'Impostazioni' }).click();

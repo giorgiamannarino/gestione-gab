@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCents, parseEuroInput } from '../../src/lib/domain/money';
+import { euroInputError, formatCents, parseEuroInput } from '../../src/lib/domain/money';
 
 const NBSP = ' ';
 
@@ -34,6 +34,35 @@ describe('formatCents', () => {
     expect(parseEuroInput('abc')).toBeNull();
     expect(parseEuroInput('1,234')).toBeNull();
     expect(parseEuroInput('')).toBeNull();
+  });
+
+  it('accetta i decimali scritti in tutti i modi comuni', () => {
+    for (const s of ['180,50', '180.50', '180,5', '180.5', '180,50 €', '€ 180,50', '180,50 euro', '180,50 EUR', ' 180,50 ']) {
+      expect(parseEuroInput(s), s).toBe(18050);
+    }
+    expect(parseEuroInput(',5')).toBe(50);
+    expect(parseEuroInput('180,')).toBe(18000);
+    expect(parseEuroInput('1,234.56')).toBe(123456);
+    expect(parseEuroInput("1'234,5")).toBe(123450);
+    expect(parseEuroInput('1 234,50')).toBe(123450);
+    expect(parseEuroInput('1.234.567,8')).toBe(123456780);
+    expect(parseEuroInput('−3,9')).toBe(-390);
+  });
+
+  it('rifiuta più di due decimali e i separatori messi a caso', () => {
+    for (const s of ['180,555', '0.500', '1..2', '12,3,4', '.', '1.23.456']) expect(parseEuroInput(s), s).toBeNull();
+  });
+
+  it('messaggi di errore dei campi importo', () => {
+    expect(euroInputError('180,50')).toBe('');
+    expect(euroInputError('')).toMatch(/Scrivi l'importo/);
+    expect(euroInputError('', { optional: true })).toBe('');
+    expect(euroInputError('180,555')).toMatch(/due decimali/);
+    expect(euroInputError('abc')).toMatch(/non valido/);
+    expect(euroInputError('0')).toMatch(/maggiore di zero/);
+    expect(euroInputError('0', { allowZero: true })).toBe('');
+    expect(euroInputError('-5')).toMatch(/negativo/);
+    expect(euroInputError('-5', { allowNegative: true })).toBe('');
   });
 
   it('rifiuta importi non interi', () => {

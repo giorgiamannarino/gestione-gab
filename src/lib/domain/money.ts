@@ -40,17 +40,52 @@ export function amountParts(cents: Cents, opts: FormatOptions = {}): AmountParts
   };
 }
 
-/** "1.234,56" / "1234.5" / "12" / "-3,9 €" → centesimi. Null se non è un importo. */
+/**
+ * Importo scritto a mano → centesimi. Null se non è un importo.
+ * Accetta la virgola o il punto per i decimali ("180,50", "180.50", ",5", "180,"), i separatori
+ * delle migliaia ("1.234,56", "1,234.56", "1'234", "1 234") e "€" o "euro" prima o dopo.
+ * Un solo punto seguito da tre cifre ("1.500") indica le migliaia. Più di due decimali non sono un importo.
+ */
 export function parseEuroInput(s: string): Cents | null {
-  let t = s.replace(/[\s€ ]/g, '').replace('−', '-');
-  if (!t) return null;
-  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
-  else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
-  if (!/^-?\d+(\.\d{1,2})?$/.test(t)) return null;
+  let t = s.toLowerCase().replace(/euro?|€/g, '').replace(/[\s'’]/g, '').replace(/[−–]/g, '-');
   const neg = t.startsWith('-');
-  const [i, d = ''] = t.replace('-', '').split('.');
-  const cents = Number(i) * 100 + Number(d.padEnd(2, '0'));
-  return neg ? -cents : cents;
+  t = t.replace(/^[-+]/, '');
+  if (!/^[\d.,]+$/.test(t) || !/\d/.test(t)) return null;
+  // Il separatore decimale è l'ultimo, se non chiude un gruppo di migliaia.
+  const last = Math.max(t.lastIndexOf(','), t.lastIndexOf('.'));
+  let int = t;
+  let dec = '';
+  if (last >= 0) {
+    const sep = t[last]!;
+    const after = t.slice(last + 1);
+    const mixed = t.includes(',') && t.includes('.');
+    const repeated = t.indexOf(sep) !== last;
+    // "1.500" sono migliaia; "1,500" invece ha tre decimali (la virgola è sempre decimale, se è una sola).
+    const thousands = !mixed && after.length === 3 && (repeated || (sep === '.' && /^[1-9]\d{0,2}$/.test(t.slice(0, last))));
+    if (!thousands && !repeated) {
+      int = t.slice(0, last);
+      dec = after;
+    }
+  }
+  // Nella parte intera restano solo separatori delle migliaia, a gruppi di tre.
+  if (/[.,]/.test(int) && !/^\d{1,3}([.,]\d{3})+$/.test(int)) return null;
+  int = int.replace(/[.,]/g, '');
+  if (!/^\d*$/.test(int) || !/^\d{0,2}$/.test(dec)) return null;
+  const cents = Number(int || '0') * 100 + Number(dec.padEnd(2, '0'));
+  return neg && cents ? -cents : cents;
+}
+
+/**
+ * Messaggio per un campo importo, vuoto se va bene.
+ * Di default serve un importo maggiore di zero; `optional` accetta il campo vuoto.
+ */
+export function euroInputError(s: string, opts: { optional?: boolean; allowZero?: boolean; allowNegative?: boolean } = {}): string {
+  if (!s.trim()) return opts.optional ? '' : "Scrivi l'importo, per esempio 180,50.";
+  const c = parseEuroInput(s);
+  if (c === null) return /^[^.,]*[.,]\d{3,}\D*$/.test(s.trim()) ? 'Al massimo due decimali, per esempio 180,50.' : 'Importo non valido: scrivi per esempio 180,50.';
+  if (c < 0 && !opts.allowNegative) return "L'importo non può essere negativo.";
+  if (c === 0 && !opts.allowZero) return "L'importo deve essere maggiore di zero.";
+  return '';
 }
 
 export function formatCents(cents: Cents, opts: FormatOptions = {}): string {

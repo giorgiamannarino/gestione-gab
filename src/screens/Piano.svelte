@@ -2,7 +2,7 @@
   import { Check, CircleCheck, CloudUpload, Lock, PiggyBank } from '@lucide/svelte';
   import { app } from '../lib/app/store.svelte';
   import { router } from '../lib/app/router.svelte';
-  import { formatCents, parseEuroInput } from '../lib/domain/money';
+  import { euroInputError, formatCents, parseEuroInput } from '../lib/domain/money';
   import { monthName, periodLabel } from '../lib/domain/dates';
   import type { Id } from '../lib/domain/types';
   import type { PlanLine } from '../lib/domain/plan';
@@ -47,7 +47,9 @@
     return { estimate: bill.estimate, fund, allocation, late: bill.late, shortfall: billShortfall(fund, allocation, bill.estimate) };
   });
   const proposal = $derived(plan.saveable);
-  const saveAmount = $derived(parseEuroInput(savingInput) ?? proposal);
+  // Vuoto = la proposta.
+  const savingError = $derived(euroInputError(savingInput, { optional: true }));
+  const saveAmount = $derived(savingError ? 0 : (parseEuroInput(savingInput) ?? proposal));
   const savedTx = $derived(app.txByKey(`plan:save:${key}`));
   const leftoverTx = $derived(app.txByKey(`plan:leftover:${key}`));
   const checklistDone = $derived([...plan.revolut, ...plan.others, ...plan.deadlines].every((l) => done(l.recurringId)));
@@ -55,10 +57,8 @@
 
   async function registerSalary() {
     const cents = parseEuroInput(salaryInput);
-    if (!cents || cents <= 0) {
-      salaryError = 'Scrivi un importo valido, per esempio 2.345,00.';
-      return;
-    }
+    salaryError = euroInputError(salaryInput);
+    if (salaryError || !cents) return;
     salaryError = '';
     await app.registerSalary(cents, app.today);
     salaryInput = '';
@@ -193,7 +193,7 @@
           <Button variant="ghost" onclick={() => moveToSavings(0, 'save', '')}>Annulla lo spostamento</Button>
         {:else}
           <div class="salary-form">
-            <TextField label="Importo" inputmode="decimal" placeholder={formatCents(proposal, { symbol: false })} bind:value={savingInput} hint="Lascia vuoto per usare la proposta." />
+            <TextField label="Importo" inputmode="decimal" placeholder={formatCents(proposal, { symbol: false })} bind:value={savingInput} error={savingError} hint="Lascia vuoto per usare la proposta." />
             <Button size="lg" block disabled={saveAmount <= 0} onclick={() => moveToSavings(saveAmount, 'save', 'Risparmio del mese')}>
               <PiggyBank size={18} /> Sposta {eur(saveAmount)}
             </Button>
