@@ -250,6 +250,15 @@ class AppStore {
     await this.reload();
   }
 
+  /** Solo anteprima di sviluppo: sostituisce tutto con dati inventati. Escluso dalla build pubblicata. */
+  async loadDemo(): Promise<void> {
+    if (!import.meta.env.DEV) return;
+    const { demoData } = await import('../demo/demo-data');
+    await this.replaceData(demoData(this.today));
+    await setMeta(this.db!, 'backup', { deletedSince: 0 });
+    await this.reload();
+  }
+
   async finishOnboarding(): Promise<void> {
     await setMeta(this.db!, 'onboarded', true);
     this.onboarded = true;

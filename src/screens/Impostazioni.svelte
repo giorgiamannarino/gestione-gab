@@ -205,6 +205,13 @@
     <Card padded={false}>
       <div class="list">{@render nav('cancella', Trash2, 'Cancella i dati', 'Per ripartire da zero')}</div>
     </Card>
+    {#if import.meta.env.DEV}
+      <Card>
+        <p class="strong">Anteprima di sviluppo</p>
+        <p class="c-3 small bottom">Sostituisce tutti i dati di questa anteprima con dati inventati.</p>
+        <Button variant="secondary" block onclick={async () => { await app.loadDemo(); router.go('/'); showToast('Dati di esempio caricati', { tone: 'success' }); }}>Ricarica i dati di esempio</Button>
+      </Card>
+    {/if}
     <p class="version">Conti {APP_VERSION} · i dati restano solo su questo telefono</p>
 
   {:else if section === 'backup'}

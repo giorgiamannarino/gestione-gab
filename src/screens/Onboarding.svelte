@@ -163,6 +163,9 @@
       <Button size="lg" block onclick={() => { mode = 'excel'; step = 'import'; }}><FileSpreadsheet size={20} /> Importa il foglio Excel</Button>
       <Button size="lg" variant="secondary" block onclick={() => { mode = 'zero'; step = 'import'; }}>Parti da zero</Button>
       <Button variant="ghost" onclick={() => (step = 'restore')}>Ho già un backup</Button>
+      {#if import.meta.env.DEV}
+        <Button variant="ghost" onclick={async () => { await app.loadDemo(); await finish(); }}>Anteprima: usa dati di esempio</Button>
+      {/if}
     </div>
 
   {:else if step === 'restore'}
