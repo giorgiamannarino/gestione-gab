@@ -103,7 +103,7 @@
       {/if}
       <div class="sum-row strong"><span>Puoi mettere da parte</span><Amount cents={proposal} size="lg" /></div>
       <p class="sr-only-sentence c-3 small">
-        Stipendio {eur(salary)} → fissi e pocket {eur(plan.fixedTotal)}{plan.safetyMargin ? ` → margine ${eur(plan.safetyMargin)}` : ''}{billInfo?.shortfall ? ` → bollette ${eur(billInfo.shortfall)}` : ''} → puoi mettere da parte {eur(proposal)}
+        Stipendio {eur(salary)} → fissi e pocket {eur(plan.fixedTotal)}{plan.marginFromSalary ? ` → margine ${eur(plan.marginFromSalary)}` : ''}{billInfo?.shortfall ? ` → bollette ${eur(billInfo.shortfall)}` : ''} → puoi mettere da parte {eur(proposal)}
       </p>
     </section>
 
@@ -147,7 +147,16 @@
           </div>
         {/each}
         {#if plan.safetyMargin}
-          <div class="line"><Lock size={16} strokeWidth={1.75} class="lock" /><span class="lname">Margine di sicurezza</span><Amount cents={plan.safetyMargin} tone="muted" /></div>
+          <div class="line">
+            <Lock size={16} strokeWidth={1.75} class="lock" />
+            <span class="lname">
+              Margine di sicurezza
+              {#if plan.marginFromLeftover}
+                <span class="topup">{eur(plan.marginFromLeftover)} già rimasti dal periodo prima{plan.marginFromSalary ? `, ${eur(plan.marginFromSalary)} dallo stipendio` : ': nulla dallo stipendio'}</span>
+              {/if}
+            </span>
+            <Amount cents={plan.safetyMargin} tone="muted" />
+          </div>
         {/if}
       </Card>
     {/if}
@@ -185,12 +194,15 @@
         {/if}
       </Card>
 
-      {#if plan.leftover > 0}
+      {#if plan.leftoverExcess > 0 || leftoverTx}
         <Card title="Avanzo del periodo precedente">
-          <p class="c-2 small">Prima dello stipendio su {app.mainPocket.name} erano rimasti {eur(plan.leftover)}. Vuoi aggiungerli al risparmio?</p>
+          <p class="c-2 small">
+            Prima dello stipendio su {app.mainPocket.name} erano rimasti {eur(plan.leftover)}.
+            {#if plan.marginFromLeftover}{eur(plan.marginFromLeftover)} restano come margine di sicurezza; gli altri {eur(plan.leftoverExcess)} puoi aggiungerli al risparmio.{:else}Vuoi aggiungerli al risparmio?{/if}
+          </p>
           <div class="btn-row">
-            <Button variant={leftoverTx ? 'ghost' : 'secondary'} onclick={() => moveToSavings(plan.leftover, 'leftover', 'Avanzo del periodo')}>
-              {leftoverTx ? 'Annulla' : `Aggiungi ${eur(plan.leftover)}`}
+            <Button variant={leftoverTx ? 'ghost' : 'secondary'} onclick={() => moveToSavings(plan.leftoverExcess, 'leftover', 'Avanzo del periodo')}>
+              {leftoverTx ? 'Annulla' : `Aggiungi ${eur(plan.leftoverExcess)}`}
             </Button>
           </div>
         </Card>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { balances, balanceSeries, sumBalances } from '../../src/lib/domain/balances';
 import { periodLabel, periodOf, shiftPeriod } from '../../src/lib/domain/dates';
-import { buildPlan, forecastAllocation, recurringAmount } from '../../src/lib/domain/plan';
+import { buildPlan, forecastAllocation, recurringAmount, splitMargin } from '../../src/lib/domain/plan';
 import { addMonths, billAvailable, billExpectedIn, billReferencePeriod, billShortfall, budgetSpent, dailySpending, dueDebits, pocketPeriodStats, spendingByCategory, splitBill, totalSpending } from '../../src/lib/domain/stats';
 import { buildAdjustment, buildEntry, roundupPreview, roundupTxFor } from '../../src/lib/domain/transactions';
 import { ctx, pockets, recurring, tx } from './fixtures';
@@ -170,6 +170,36 @@ describe('piano di inizio mese', () => {
       const custom = rec.map((r) => (r.id === 'c' ? { ...r, reserveExtra: 5000 } : r));
       const p = buildPlan({ salary: 234500, recurring: custom, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 0, takenPrev: new Map([['car', 4000]]) });
       expect(p.revolut.find((l) => l.recurringId === 'c')!.amount).toBe(9000);
+    });
+  });
+
+  describe('margine di sicurezza e avanzo', () => {
+    const plan = (margin: number, leftover: number) =>
+      buildPlan({ salary: 234500, recurring, pockets, mainPocketId: 'main', safetyMargin: margin, leftover });
+
+    it('margine 50, avanzati 20 → dallo stipendio se ne tengono solo 30', () => {
+      const p = plan(5000, 2000);
+      expect(p.marginFromLeftover).toBe(2000);
+      expect(p.marginFromSalary).toBe(3000);
+      expect(p.leftoverExcess).toBe(0);
+      expect(p.saveable).toBe(99196 - 3000);
+    });
+
+    it('margine 50, avanzati 60 → 50 restano come margine, 10 spostabili sui risparmi', () => {
+      const p = plan(5000, 6000);
+      expect(p.marginFromLeftover).toBe(5000);
+      expect(p.marginFromSalary).toBe(0);
+      expect(p.leftoverExcess).toBe(1000);
+      expect(p.saveable).toBe(99196);
+    });
+
+    it('senza avanzo il margine si tiene tutto dallo stipendio', () => {
+      expect(plan(5000, 0)).toMatchObject({ marginFromSalary: 5000, leftoverExcess: 0, saveable: 94196 });
+      expect(plan(5000, -800)).toMatchObject({ marginFromSalary: 5000, leftoverExcess: 0 });
+    });
+
+    it('senza margine tutto l\'avanzo è spostabile', () => {
+      expect(splitMargin(0, 6225)).toEqual({ fromLeftover: 0, fromSalary: 0, excess: 6225 });
     });
   });
 

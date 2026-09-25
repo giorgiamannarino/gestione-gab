@@ -73,7 +73,8 @@
         {/each}
       </ul>
     {/if}
-    <p><strong>Puoi mettere da parte</strong> = stipendio − fissi e pocket − margine di sicurezza{st.safetyMargin ? ` (${eur(st.safetyMargin)})` : ''}. Viene proposto come giroconto verso {reserve}. Quello che era rimasto su {main} prima dello stipendio lo vedi a parte e scegli tu se aggiungerlo.</p>
+    <p><strong>Puoi mettere da parte</strong> = stipendio − fissi e pocket − la parte di margine di sicurezza{st.safetyMargin ? ` (${eur(st.safetyMargin)})` : ''} non già coperta. Viene proposto come giroconto verso {reserve}.</p>
+    <p>Quello che era rimasto su {main} prima dello stipendio conta per il margine: con margine 50 € e 20 € rimasti, dallo stipendio se ne tengono solo 30. Se ne erano rimasti 60, 50 restano come margine e i 10 in più li puoi aggiungere al risparmio.</p>
     <p>Abbonamenti: l'importo si calcola da solo sommando gli addebiti del pocket più i loro arrotondamenti, così non va mai in rosso.</p>
   </details>
 

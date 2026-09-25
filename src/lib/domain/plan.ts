@@ -59,11 +59,29 @@ export interface Plan {
   keep: PlanLine[];
   /** Totale di fissi e spostamenti. */
   fixedTotal: Cents;
+  /** Margine di sicurezza da avere sul conto principale. */
   safetyMargin: Cents;
-  /** Stipendio − fissi − margine (mai negativo). */
+  /** Parte del margine già coperta da quanto era rimasto prima dello stipendio. */
+  marginFromLeftover: Cents;
+  /** Parte del margine da tenere dallo stipendio (margine − rimasto, mai negativo). */
+  marginFromSalary: Cents;
+  /** Stipendio − fissi − margine da tenere dallo stipendio (mai negativo). */
   saveable: Cents;
   /** Quanto era rimasto sul conto principale prima dello stipendio. */
   leftover: Cents;
+  /** Rimasto oltre il margine: spostabile sui risparmi. */
+  leftoverExcess: Cents;
+}
+
+/**
+ * Margine di sicurezza e avanzo: quello che è rimasto sul conto principale conta per il margine.
+ * Margine 50, rimasti 20 → dallo stipendio se ne tengono 30. Margine 50, rimasti 60 → nulla
+ * dallo stipendio, 50 restano come margine e 10 sono spostabili sui risparmi.
+ */
+export function splitMargin(margin: Cents, leftover: Cents) {
+  const left = Math.max(0, leftover);
+  const fromLeftover = Math.min(margin, left);
+  return { fromLeftover, fromSalary: margin - fromLeftover, excess: left - fromLeftover };
 }
 
 /** Importo di una voce fissa. Per "abbonamenti" = addebiti del pocket + i loro arrotondamenti. */
@@ -124,6 +142,7 @@ export function buildPlan(input: {
 
   const sum = (ls: PlanLine[]) => ls.reduce((a, l) => a + l.amount, 0);
   const fixedTotal = sum(auto) + sum(revolut) + sum(others) + sum(keep);
+  const margin = splitMargin(input.safetyMargin, input.leftover);
   return {
     auto,
     revolut,
@@ -132,7 +151,10 @@ export function buildPlan(input: {
     keep,
     fixedTotal,
     safetyMargin: input.safetyMargin,
-    saveable: Math.max(0, input.salary - fixedTotal - input.safetyMargin),
+    marginFromLeftover: margin.fromLeftover,
+    marginFromSalary: margin.fromSalary,
+    saveable: Math.max(0, input.salary - fixedTotal - margin.fromSalary),
     leftover: input.leftover,
+    leftoverExcess: margin.excess,
   };
 }
