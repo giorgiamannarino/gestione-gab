@@ -8,6 +8,7 @@ import { formatCents } from '../domain/money';
 import { buildAdjustment, buildEntry, type Ctx, type EntryInput } from '../domain/transactions';
 import { DEFAULT_SETTINGS, type AppData, type Id, type Recurring, type Settings, type Transaction } from '../domain/types';
 import { buildPlan } from '../domain/plan';
+import { addMonths, splitBill } from '../domain/stats';
 import {
   deleteItem, deleteTransaction, getBackupInfo, getMeta, loadAll, openAppDb, pendingChanges, putItem, putTransactions,
   replaceAll, restoreTransactions, saveEntry, saveSettings, setMeta, type BackupInfo, type DB,
@@ -41,6 +42,61 @@ class AppStore {
     return { pockets: this.data.pockets, newId: () => crypto.randomUUID(), now: () => Date.now() };
   }
 
+  /** "Non ancora" sul banner delle bollette: nascosto fino a domani. */
+  billSnooze = $state('');
+
+  /** Dal mese della prossima bolletta stimata, finché non viene registrata. */
+  get billDue(): { month: string; estimate: number } | null {
+    const nb = this.data.settings.nextBill;
+    const bills = this.data.pockets.find((p) => p.role === 'bills' && !p.archived);
+    if (!nb || !bills || this.today.slice(0, 7) < nb.month || this.billSnooze === this.today) return null;
+    if (this.txByKey(`bill:${nb.month}`)) return null;
+    return { month: nb.month, estimate: nb.amount };
+  }
+
+  async snoozeBill(): Promise<void> {
+    this.billSnooze = this.today;
+    await setMeta(this.db!, 'billSnooze', this.today);
+  }
+
+  /**
+   * Bolletta pagata dal Fondo bollette: se costa meno del fondo, il resto va sui risparmi;
+   * se costa di più il fondo va in negativo e lo si segnala. Poi la stima passa a due mesi dopo.
+   */
+  async registerBill(amount: number, date: string): Promise<{ rest: number; shortfall: number }> {
+    const due = this.billDue;
+    const bills = this.data.pockets.find((p) => p.role === 'bills' && !p.archived);
+    if (!due || !bills || amount <= 0) return { rest: 0, shortfall: 0 };
+    const reserve = this.savingsTarget;
+    const { rest, shortfall } = splitBill(this.balances.get(bills.id) ?? 0, amount);
+    const ctx = this.ctx();
+    const category = this.data.categories.find((c) => c.id === 'bollette' && !c.archived)?.id;
+    const txs = [buildEntry({ kind: 'expense', date, amount, fromPocketId: bills.id, description: 'Bollette', categoryId: category, source: 'plan', autoKey: `bill:${due.month}` }, ctx)];
+    if (rest > 0 && reserve) {
+      txs.push(buildEntry({ kind: 'transfer', date, amount: rest, fromPocketId: bills.id, splits: [{ pocketId: reserve.id, amount: rest }], description: 'Avanzo bollette', categoryId: 'sys-transfer', source: 'plan', autoKey: `bill-rest:${due.month}` }, ctx));
+    }
+    txs.forEach((t, i) => (t.createdAt += i));
+    const before = $state.snapshot(this.data.settings) as Settings;
+    await putTransactions(this.db!, txs);
+    await saveSettings(this.db!, { ...before, nextBill: { month: addMonths(due.month, 2), amount } });
+    await this.reload();
+    const message =
+      shortfall > 0
+        ? `Bollette registrate: il fondo non bastava, mancano ${formatCents(shortfall)}`
+        : rest > 0 && reserve
+          ? `Bollette registrate, ${formatCents(rest)} tornati su ${reserve.name}`
+          : 'Bollette registrate';
+    showToast(message, {
+      tone: shortfall > 0 ? 'error' : 'success',
+      undo: async () => {
+        for (const t of txs) await deleteTransaction(this.db!, t.id);
+        await saveSettings(this.db!, before);
+        await this.reload();
+      },
+    });
+    return { rest, shortfall };
+  }
+
   /** Dopo le 20, se oggi non è stato inserito nessun movimento a mano. */
   get eveningReminderDue(): boolean {
     if (!this.data.settings.eveningReminder || new Date().getHours() < REMINDER_HOUR) return false;
@@ -59,6 +115,7 @@ class AppStore {
       this.db = await openAppDb();
       await this.reload();
       this.onboarded = await getMeta(this.db, 'onboarded', false);
+      this.billSnooze = await getMeta(this.db, 'billSnooze', '');
       this.persisted = (await navigator.storage?.persisted?.()) ?? null;
     } catch (e) {
       this.error = "Non riesco ad aprire i dati sul telefono. Chiudi e riapri l'app; se il problema resta, ripristina un backup.";

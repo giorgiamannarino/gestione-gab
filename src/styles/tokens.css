@@ -86,6 +86,7 @@
   --tint: 30%; /* quanto "fill" usare negli sfondi tenui (messaggi, badge) */
   --toast-action: #c9c1ff;
   --chart-muted: #e3e3ee;
+  --heat-strong-text: #ffffff;
   --focus: #5a4bc8;
   --shadow-1: 0 1px 2px rgba(18, 18, 40, 0.04), 0 8px 24px rgba(40, 30, 120, 0.05);
   --shadow-2: 0 -8px 40px rgba(18, 18, 40, 0.12);
@@ -135,6 +136,7 @@
     --tint: 12%;
     --toast-action: #4b3dc0;
     --chart-muted: #3f3c65;
+  --heat-strong-text: #0b0a1a;
     --focus: #b0a7ff;
     --shadow-1: none;
     --shadow-2: 0 -8px 40px rgba(0, 0, 0, 0.5);
@@ -180,6 +182,7 @@
   --tint: 12%;
   --toast-action: #4b3dc0;
   --chart-muted: #3f3c65;
+  --heat-strong-text: #0b0a1a;
   --focus: #b0a7ff;
   --shadow-1: none;
   --shadow-2: 0 -8px 40px rgba(0, 0, 0, 0.5);

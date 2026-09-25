@@ -6,7 +6,10 @@
   import { balances, sumBalances } from '../lib/domain/balances';
   import { addDays, formatLongDate, monthName } from '../lib/domain/dates';
   import { formatCents } from '../lib/domain/money';
-  import { budgetSpent, debitKey, dueDebits } from '../lib/domain/stats';
+  import { budgetSpent, debitKey, dueDebits, splitBill } from '../lib/domain/stats';
+  import { parseEuroInput } from '../lib/domain/money';
+  import BottomSheet from '../ui/BottomSheet.svelte';
+  import TextField from '../ui/TextField.svelte';
   import type { Pocket } from '../lib/domain/types';
   import { color, icon } from '../lib/ui/icons';
   import { privacy, togglePrivacy } from '../lib/ui/privacy.svelte';
@@ -56,6 +59,25 @@
   }
   const open = (pocket: Pocket) => router.go(`/pocket/${pocket.id}`);
 
+  // ── Bollette ──
+  const billsPocket = $derived(app.data.pockets.find((x) => x.role === 'bills' && !x.archived));
+  const billFund = $derived(billsPocket ? (bal.get(billsPocket.id) ?? 0) : 0);
+  let billOpen = $state(false);
+  let billAmount = $state('');
+  let billDate = $state(app.today);
+  const billCents = $derived(parseEuroInput(billAmount));
+  const billSplit = $derived(billCents && billCents > 0 ? splitBill(billFund, billCents) : null);
+  function openBill() {
+    billAmount = app.billDue ? formatCents(app.billDue.estimate, { symbol: false }) : '';
+    billDate = app.today;
+    billOpen = true;
+  }
+  async function saveBill() {
+    if (!billCents || billCents <= 0) return;
+    await app.registerBill(billCents, billDate);
+    billOpen = false;
+  }
+
   // Saluto in base all'ora, aggiornato ogni minuto.
   let hour = $state(new Date().getHours());
   $effect(() => {
@@ -100,6 +122,19 @@
       <InlineMessage tone="warning" title={daysSinceBackup === null ? 'Non hai ancora un backup' : `Backup vecchio di ${daysSinceBackup} giorni`}>
         Salvane uno nuovo: basta un tocco.
         {#snippet action()}<Button variant="secondary" onclick={() => router.go('/impostazioni/backup')}>Fai il backup</Button>{/snippet}
+      </InlineMessage>
+    {/if}
+
+    {#if app.billDue}
+      {@const due = app.billDue}
+      <InlineMessage tone="info" title="Sono arrivate le bollette di {monthName(Number(due.month.slice(5, 7)))}?">
+        Stima: {privacy.hidden ? '•••' : formatCents(due.estimate)}. Nel fondo ci sono {privacy.hidden ? '•••' : formatCents(billFund)}.
+        {#snippet action()}
+          <div class="msg-actions">
+            <Button variant="secondary" onclick={openBill}>Sì, inserisci</Button>
+            <Button variant="ghost" onclick={() => app.snoozeBill()}>Non ancora</Button>
+          </div>
+        {/snippet}
       </InlineMessage>
     {/if}
 
@@ -217,6 +252,25 @@
   </div>
 </div>
 
+<BottomSheet bind:open={billOpen} title="Bollette">
+  <div class="bill">
+    <TextField label="Quanto è uscito?" inputmode="decimal" bind:value={billAmount} error={billAmount.trim() && billCents === null ? 'Scrivi un importo valido, es. 187,40.' : ''} />
+    <TextField label="Data" type="date" bind:value={billDate} />
+    <p class="c-3 small">Esce da {billsPocket?.name ?? 'Fondo bollette'}, dove ci sono {privacy.hidden ? '•••' : formatCents(billFund)}.</p>
+    {#if billSplit && billSplit.shortfall > 0}
+      <InlineMessage tone="warning" title="Il fondo non basta">
+        Mancano {privacy.hidden ? '•••' : formatCents(billSplit.shortfall)}: il fondo bollette andrà in negativo. Potresti aumentare l'accantonamento mensile.
+      </InlineMessage>
+    {:else if billSplit && billSplit.rest > 0}
+      <InlineMessage tone="success">
+        Avanzano {privacy.hidden ? '•••' : formatCents(billSplit.rest)}: li sposto su {app.savingsTarget?.name ?? 'Risparmi'}.
+      </InlineMessage>
+    {/if}
+    <p class="c-3 small">La prossima bolletta stimata passerà a due mesi dopo, con questo importo come stima.</p>
+    <Button size="lg" block disabled={!billCents || billCents <= 0} onclick={saveBill}>Registra le bollette</Button>
+  </div>
+</BottomSheet>
+
 <style>
   .page {
     padding: calc(var(--sp-2) + env(safe-area-inset-top)) var(--gutter) var(--sp-5);
@@ -298,6 +352,15 @@
   }
   .backup-hint span {
     flex: 1;
+  }
+  .bill {
+    display: grid;
+    gap: var(--sp-3);
+  }
+  .msg-actions {
+    display: flex;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
   }
   .stack {
     display: flex;

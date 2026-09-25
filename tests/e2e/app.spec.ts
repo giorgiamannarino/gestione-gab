@@ -186,6 +186,35 @@ test('i pannelli dal basso restano nello schermo e scorrono', async ({ page }) =
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
+test('calendario delle spese: tocco su un giorno mostra i suoi movimenti', async ({ page }) => {
+  await restoreExample(page);
+  await page.getByRole('button', { name: 'Statistiche' }).click();
+  await page.getByRole('button', { name: /^venerdì 25 ottobre: 48,00/ }).click();
+  const detail = page.locator('.day-detail');
+  await expect(detail).toContainText('25 ottobre');
+  await expect(detail.getByRole('button', { name: /Carburante/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^lunedì 28 ottobre: nessuna spesa/ })).toBeVisible();
+});
+
+test('bollette: il resto torna ai risparmi e la stima passa a due mesi dopo', async ({ page }) => {
+  await restoreExample(page);
+  await page.clock.setFixedTime(new Date('2030-11-05T10:00:00+01:00'));
+  await page.reload();
+  await expect(page.getByText('Sono arrivate le bollette di novembre?')).toBeVisible();
+  await page.getByRole('button', { name: 'Sì, inserisci' }).click();
+  // Nel fondo ci sono 360 € (120 + 3 × 100 − 0 − …): con 187,40 € avanzano soldi per i risparmi.
+  await page.locator('dialog[open]').getByLabel('Quanto è uscito?').fill('187,40');
+  await expect(page.getByText(/Avanzano .* li sposto su Risparmi/)).toBeVisible();
+  await page.getByRole('button', { name: 'Registra le bollette' }).click();
+  await expect(page.getByText(/Bollette registrate, .* tornati su Risparmi/)).toBeVisible();
+  await expect(page.getByText('Sono arrivate le bollette di novembre?')).toHaveCount(0);
+
+  // Se esce più del fondo: avviso prima di confermare.
+  await page.getByRole('button', { name: 'Impostazioni' }).click();
+  await page.getByRole('button', { name: /Stipendio e piano/ }).click();
+  await expect(page.getByLabel('Mese della prossima bolletta')).toHaveValue('2031-01');
+});
+
 test('pagina del pocket con previsione e saluto', async ({ page }) => {
   await restoreExample(page);
   await expect(page.getByRole('heading', { name: 'Buongiorno' })).toBeVisible(); // ore 10

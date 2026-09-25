@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { balances, balanceSeries, sumBalances } from '../../src/lib/domain/balances';
 import { periodLabel, periodOf, shiftPeriod } from '../../src/lib/domain/dates';
 import { buildPlan, forecastAllocation, recurringAmount } from '../../src/lib/domain/plan';
-import { budgetSpent, dueDebits, pocketPeriodStats, spendingByCategory, totalSpending } from '../../src/lib/domain/stats';
+import { addMonths, budgetSpent, dailySpending, dueDebits, pocketPeriodStats, spendingByCategory, splitBill, totalSpending } from '../../src/lib/domain/stats';
 import { buildAdjustment, buildEntry, roundupPreview, roundupTxFor } from '../../src/lib/domain/transactions';
 import { ctx, pockets, recurring, tx } from './fixtures';
 
@@ -176,6 +176,29 @@ describe('piano di inizio mese', () => {
   it('ignora le voci disattivate', () => {
     const rec = recurring.map((r) => (r.id === 'c' ? { ...r, active: false } : r));
     expect(buildPlan({ salary: 234500, recurring: rec, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 0 }).saveable).toBe(114196);
+  });
+});
+
+describe('bollette', () => {
+  it('se esce meno del fondo, il resto torna ai risparmi', () => {
+    expect(splitBill(20000, 17350)).toEqual({ rest: 2650, shortfall: 0 });
+  });
+  it('se esce di più, segnala quanto manca', () => {
+    expect(splitBill(20000, 23000)).toEqual({ rest: 0, shortfall: 3000 });
+    expect(splitBill(-500, 1000)).toEqual({ rest: 0, shortfall: 1000 });
+  });
+  it('prossima bolletta dopo due mesi, anche a cavallo d\'anno', () => {
+    expect(addMonths('2030-11', 2)).toBe('2031-01');
+  });
+  it('spese giorno per giorno, senza giroconti e rettifiche', () => {
+    const p = periodOf('2030-01-23', 23);
+    const txs = [
+      tx({ date: '2030-01-24', kind: 'expense', legs: [{ pocketId: 'home', amount: -1800 }] }),
+      tx({ date: '2030-01-24', kind: 'expense', legs: [{ pocketId: 'fun', amount: -450 }] }),
+      tx({ date: '2030-01-24', kind: 'transfer', legs: [{ pocketId: 'main', amount: -100 }, { pocketId: 'fun', amount: 100 }] }),
+      tx({ date: '2030-01-25', kind: 'adjustment', legs: [{ pocketId: 'main', amount: -999 }] }),
+    ];
+    expect(Object.fromEntries(dailySpending(txs, p, []))).toEqual({ '2030-01-24': { amount: 2250, count: 2 } });
   });
 });
 

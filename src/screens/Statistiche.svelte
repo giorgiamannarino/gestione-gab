@@ -2,9 +2,13 @@
   import { ChartPie, ChevronLeft, ChevronRight, Plus } from '@lucide/svelte';
   import { app } from '../lib/app/store.svelte';
   import { balanceSeries } from '../lib/domain/balances';
-  import { periodLabel, periodShortName, shiftPeriod, inPeriod } from '../lib/domain/dates';
+  import { monthName, periodLabel, periodShortName, shiftPeriod, inPeriod } from '../lib/domain/dates';
   import { parseEuroInput } from '../lib/domain/money';
-  import { spendingByCategory, spendingByPocket, totalIncome, totalSpending } from '../lib/domain/stats';
+  import { dailySpending, spendingByCategory, spendingByPocket, totalIncome, totalSpending } from '../lib/domain/stats';
+  import { formatCents } from '../lib/domain/money';
+  import { privacy } from '../lib/ui/privacy.svelte';
+  import CalendarHeatmap from '../ui/charts/CalendarHeatmap.svelte';
+  import { openQuickAdd } from '../lib/app/quickadd.svelte';
   import type { Id } from '../lib/domain/types';
   import { color, icon } from '../lib/ui/icons';
   import Amount from '../ui/Amount.svelte';
@@ -53,6 +57,25 @@
       value: totalSpending(txs, p, cats),
     })),
   );
+
+  // Calendario
+  const daily = $derived(dailySpending(txs, period, cats));
+  let selDay = $state<string | null>(null);
+  $effect(() => {
+    void period.key;
+    selDay = null;
+  });
+  // Tutti i movimenti del giorno (gli arrotondamenti compaiono sotto la loro uscita).
+  const dayTxs = $derived(selDay ? txs.filter((t) => t.date === selDay && !(t.kind === 'roundup' && t.parentId)).sort((a, b) => a.createdAt - b.createdAt) : []);
+  const pocketOf = (id?: string) => app.data.pockets.find((p) => p.id === id)?.name ?? '';
+  function dayRow(t: (typeof txs)[number]) {
+    const neg = t.legs.filter((l) => l.amount < 0).map((l) => pocketOf(l.pocketId));
+    const pos = t.legs.filter((l) => l.amount > 0).map((l) => pocketOf(l.pocketId));
+    if (t.kind === 'transfer') return { sub: `${neg.join(', ')} → ${pos.join(', ')}`, amount: t.legs.filter((l) => l.amount > 0).reduce((a, l) => a + l.amount, 0), tone: 'muted' as const, signed: false };
+    const amount = t.legs.reduce((a, l) => a + l.amount, 0);
+    const cat = cats.find((c) => c.id === t.categoryId);
+    return { sub: [...neg, ...pos].join(', ') + (cat && !cat.system ? ` · ${cat.name}` : ''), amount, tone: 'auto' as const, signed: amount > 0 };
+  }
 
   // Investimenti: versato a fine periodo e valore reale inserito a mano.
   const investments = $derived(app.data.pockets.filter((p) => p.role === 'investment' && !p.archived));
@@ -118,6 +141,32 @@
       <EmptyState icon={ChartPie} title="Nessuna spesa in questo periodo" text="Quando registri le uscite, qui vedi dove vanno i soldi." />
     </Card>
   {/if}
+
+  <Card title="Calendario delle spese">
+    <div class="cal-split">
+      <CalendarHeatmap {period} days={daily} today={app.today} selected={selDay} onselect={(d) => (selDay = d)} />
+      <div class="day-detail" aria-live="polite">
+        {#if selDay}
+          {@const v = daily.get(selDay)}
+          <p class="strong">{Number(selDay.slice(8))} {monthName(Number(selDay.slice(5, 7)))}</p>
+          <p class="c-3 tiny">Spese: {v ? (privacy.hidden ? '•••' : formatCents(v.amount)) : 'nessuna'}</p>
+          <div class="day-list">
+            {#each dayTxs as t (t.id)}
+              {@const r = dayRow(t)}
+              <button class="day-row" onclick={() => (t.kind === 'expense' || t.kind === 'income' || t.kind === 'transfer') && openQuickAdd({ editId: t.id })}>
+                <span class="dr-text"><span class="dr-title">{t.description}</span><span class="c-3 tiny">{r.sub}</span></span>
+                <Amount cents={r.amount} size="sm" tone={r.tone} signed={r.signed} />
+              </button>
+            {:else}
+              <p class="c-3 tiny">Nessun movimento.</p>
+            {/each}
+          </div>
+        {:else}
+          <p class="c-3 tiny hint">Tocca un giorno per vedere i suoi movimenti.</p>
+        {/if}
+      </div>
+    </div>
+  </Card>
 
   <Card title="Spese negli ultimi sei periodi">
     <ColumnChart title="Spese totali negli ultimi sei periodi" data={history} />
@@ -211,6 +260,52 @@
   }
   .hint {
     margin-top: var(--sp-2);
+  }
+  .strong {
+    font-weight: var(--fw-bold);
+  }
+  /* Calendario piccolo e centrato, movimenti del giorno sotto (con scorrimento se sono tanti). */
+  .cal-split :global(.cal) {
+    max-width: 280px;
+    margin: 0 auto;
+  }
+  .day-detail {
+    margin-top: var(--sp-3);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--hairline);
+  }
+  .day-list {
+    margin-top: var(--sp-2);
+    max-height: 260px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .day-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--sp-2);
+    width: 100%;
+    min-height: 48px;
+    padding: var(--sp-1) 0;
+    text-align: left;
+    border-top: 1px solid var(--hairline);
+  }
+  .dr-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .dr-title {
+    max-width: 100%;
+    font-size: var(--fs-callout);
+    font-weight: var(--fw-medium);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tiny {
+    font-size: var(--fs-caption);
   }
   .form {
     display: grid;

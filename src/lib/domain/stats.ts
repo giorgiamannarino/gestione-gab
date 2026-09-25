@@ -52,6 +52,34 @@ export function budgetSpent(budget: Recurring, txs: Transaction[], p: Period): C
     .reduce((a, l) => a - l.amount, 0);
 }
 
+/** Spese giorno per giorno nel periodo (per il calendario). */
+export function dailySpending(txs: Transaction[], p: Period, categories: Category[]): Map<ISODate, { amount: Cents; count: number }> {
+  const ex = excludedSet(categories);
+  const out = new Map<ISODate, { amount: Cents; count: number }>();
+  for (const t of txs) {
+    if (!inPeriod(t.date, p) || !isSpending(t, ex)) continue;
+    const d = out.get(t.date) ?? { amount: 0, count: 0 };
+    out.set(t.date, { amount: d.amount - t.legs.reduce((a, l) => a + l.amount, 0), count: d.count + 1 });
+  }
+  return out;
+}
+
+/**
+ * Bolletta pagata dal fondo: se costa meno del fondo, il resto torna nei risparmi;
+ * se costa di più, la differenza è ciò che manca (il fondo va in negativo).
+ */
+export function splitBill(fund: Cents, bill: Cents): { rest: Cents; shortfall: Cents } {
+  const available = Math.max(0, fund);
+  return { rest: Math.max(0, available - bill), shortfall: Math.max(0, bill - available) };
+}
+
+/** Mese "YYYY-MM" spostato di n mesi. */
+export function addMonths(month: string, n: number): string {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y!, m! - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 /** Movimenti di un pocket nel periodo, fino a oggi. Le rettifiche sono a parte. */
 export function pocketPeriodStats(pocketId: Id, txs: Transaction[], p: Period) {
   let spent = 0;
