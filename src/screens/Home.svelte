@@ -113,7 +113,8 @@
       <Card title="Da confermare">
         {#each due as d (d.recurring.id)}
           {@const pk = app.data.pockets.find((x) => x.id === d.recurring.fromPocketId)}
-          <ListRow title={d.recurring.name} subtitle="{pk?.name ?? ''} · {Number(d.date.slice(8))} {monthName(Number(d.date.slice(5, 7)))}">
+          {@const to = d.recurring.toPocketId ? app.data.pockets.find((x) => x.id === d.recurring.toPocketId) : undefined}
+          <ListRow title={d.recurring.name} subtitle="{pk?.name ?? ''}{to ? ` → ${to.name}` : ''} · dal {Number(d.date.slice(8))} {monthName(Number(d.date.slice(5, 7)))}">
             {#snippet trailing()}
               <button class="confirm" onclick={() => app.confirmDebit(d.recurring, d.date, debitKey(d.recurring, p))}>
                 <Check size={16} strokeWidth={2.25} /> {privacy.hidden ? 'Conferma' : formatCents(d.recurring.amount)}

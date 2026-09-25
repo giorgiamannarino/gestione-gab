@@ -6,6 +6,7 @@
   import { app } from '../lib/app/store.svelte';
   import { router } from '../lib/app/router.svelte';
   import { APP_VERSION, exportCsv, saveBackup } from '../lib/app/backup-actions';
+  import { getTheme, setTheme, type ThemeChoice } from '../lib/ui/theme';
   import { notify, notifyState, requestNotify, REMINDER_TEXT, type NotifyState } from '../lib/app/notify';
   import { formatDate, toISODate } from '../lib/domain/dates';
   import { formatCents, parseEuroInput } from '../lib/domain/money';
@@ -135,7 +136,7 @@
     if (!recEdit || !recEdit.name.trim()) return;
     const { amountText, ...r } = recEdit;
     const amount = r.amountFromDebits ? 0 : (parseEuroInput(amountText) ?? 0);
-    await app.put('recurring', { ...r, name: r.name.trim(), amount, day: r.kind === 'debit' ? r.day : undefined, toPocketId: r.kind === 'allocation' ? r.toPocketId : undefined });
+    await app.put('recurring', { ...r, name: r.name.trim(), amount, day: r.kind === 'debit' ? r.day : undefined, toPocketId: r.kind === 'budget' ? undefined : r.toPocketId, categoryId: r.kind === 'debit' && r.toPocketId ? undefined : r.categoryId });
     recEdit = null;
     showToast('Voce salvata', { tone: 'success' });
   }
@@ -156,6 +157,9 @@
     await app.updateSettings({ salaryDay: day, safetyMargin: m, nextBill: billMonth && b ? { month: billMonth, amount: b } : undefined });
     showToast('Impostazioni salvate', { tone: 'success' });
   }
+
+  // ── Aspetto ──
+  let themeChoice = $state<ThemeChoice>(getTheme());
 
   // ── Promemoria ──
   let notifyStatus = $state<NotifyState>(notifyState());
@@ -187,6 +191,19 @@
   {/if}
 
   {#if section === ''}
+    <Card title="Aspetto">
+      <Segmented
+        label="Aspetto"
+        bind:value={themeChoice}
+        onchange={(v) => setTheme(v)}
+        options={[
+          { value: 'auto', label: 'Automatico' },
+          { value: 'light', label: 'Chiaro' },
+          { value: 'dark', label: 'Scuro' },
+        ]}
+      />
+      <p class="c-3 small top">{themeChoice === 'auto' ? "Segue l'impostazione dell'iPhone (Impostazioni → Schermo e luminosità)." : 'Resta così a prescindere dal telefono.'}</p>
+    </Card>
     <Card padded={false}>
       <div class="list">
         {@render nav('backup', CloudUpload, 'Backup e dati', lastBackup ? `Ultimo backup ${lastBackup}${app.pending ? ` · ${app.pending} da salvare` : ''}` : 'Nessun backup ancora')}
@@ -472,8 +489,13 @@
       {/if}
       {#if recEdit.kind === 'debit'}
         <TextField label="Giorno di addebito" inputmode="numeric" value={recEdit.day ? String(recEdit.day) : ''} oninput={(e) => (recEdit!.day = Number((e.currentTarget as HTMLInputElement).value) || undefined)} hint="Il giorno in cui te lo propongo da confermare." />
+        <p class="flabel">Verso un altro pocket (facoltativo)</p>
+        <p class="c-3 small">Se lo scegli, alla conferma registro un giroconto invece di una spesa (es. Generali → Fondo Pensione).</p>
+        <div class="chips">
+          {#each app.activePockets.filter((p) => p.id !== recEdit!.fromPocketId) as p (p.id)}<Chip label={p.name} color={color(p.color)} selected={recEdit.toPocketId === p.id} onclick={() => (recEdit!.toPocketId = recEdit!.toPocketId === p.id ? undefined : p.id)} />{/each}
+        </div>
       {/if}
-      {#if recEdit.kind !== 'allocation'}
+      {#if recEdit.kind === 'budget' || (recEdit.kind === 'debit' && !recEdit.toPocketId)}
         <p class="flabel">Categoria</p>
         <div class="chips">
           {#each app.data.categories.filter((c) => !c.system && !c.archived) as c (c.id)}<Chip label={c.name} icon={icon(c.icon)} color={color(c.color)} selected={recEdit.categoryId === c.id} onclick={() => (recEdit!.categoryId = c.id)} />{/each}

@@ -76,6 +76,7 @@ export interface Category {
 /**
  * Voce fissa mensile.
  * - debit: addebito in un giorno (DAS, abbonamenti), proposto da confermare.
+ *   Con `toPocketId` è un giroconto programmato (es. Generali → Fondo Pensione dall'8 del mese).
  * - allocation: spostamento a inizio periodo (Revolut, bollette, FP/PAC).
  * - budget: somma che resta su un pocket (benzina), spese inserite a mano.
  */

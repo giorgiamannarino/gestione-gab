@@ -99,7 +99,8 @@ class AppStore {
     const { tx } = await saveEntry(db, input, this.ctx(), existingId);
     await this.reload();
     const label = input.kind === 'expense' ? 'Uscita' : input.kind === 'income' ? 'Entrata' : 'Giroconto';
-    showToast(existingId ? 'Movimento aggiornato' : `${label} di ${formatCents(input.amount)} salvata`, {
+    const saved = input.kind === 'transfer' ? 'salvato' : 'salvata';
+    showToast(existingId ? 'Movimento aggiornato' : `${label} di ${formatCents(input.amount)} ${saved}`, {
       tone: 'success',
       undo: async () => {
         await deleteTransaction(db, tx.id);
@@ -152,6 +153,14 @@ class AppStore {
   }
 
   async confirmDebit(r: Recurring, date: string, key: string): Promise<void> {
+    if (r.toPocketId) {
+      // Giroconto programmato (es. Generali → Fondo Pensione).
+      await this.saveEntry({
+        kind: 'transfer', date, amount: r.amount, fromPocketId: r.fromPocketId, splits: [{ pocketId: r.toPocketId, amount: r.amount }],
+        description: r.name, categoryId: 'sys-transfer', source: 'recurring', autoKey: key,
+      });
+      return;
+    }
     await this.saveEntry({
       kind: 'expense', date, amount: r.amount, fromPocketId: r.fromPocketId, description: r.name,
       categoryId: r.categoryId, source: 'recurring', autoKey: key,

@@ -81,6 +81,7 @@ export function exampleBackup() {
     { id: 'home', name: 'Casa', kind: 'allocation', amount: 30000, fromPocketId: 'main', toPocketId: 'home', mode: 'topUp', active: true, order: 7 },
     { id: 'fun', name: 'Svago', kind: 'allocation', amount: 40000, fromPocketId: 'main', toPocketId: 'fun', mode: 'topUp', active: true, order: 8 },
     { id: 'car', name: 'Auto', kind: 'allocation', amount: 15000, fromPocketId: 'main', toPocketId: 'car', mode: 'reserve', active: true, order: 9 },
+    { id: 'fpv', name: 'Versamento fondo', kind: 'debit', amount: 10000, fromPocketId: 'save', toPocketId: 'fp', day: 25, active: true, order: 13 },
     { id: 'net', name: 'Internet', kind: 'debit', amount: 995, fromPocketId: 'subs', day: 25, categoryId: 'abbonamenti', active: true, order: 10 },
     { id: 'mus', name: 'Musica', kind: 'debit', amount: 2099, fromPocketId: 'subs', day: 19, categoryId: 'abbonamenti', active: true, order: 11 },
     { id: 'tv', name: 'Serie TV', kind: 'debit', amount: 599, fromPocketId: 'subs', day: 17, categoryId: 'abbonamenti', active: true, order: 12 },

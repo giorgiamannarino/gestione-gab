@@ -111,6 +111,24 @@ test('piano con ricarica dei pocket Revolut e prova delle notifiche', async ({ p
   expect(await page.evaluate(() => (window as unknown as { __notifiche: string[] }).__notifiche)).toContain('Hai inserito le spese di oggi? Non ti scordare!');
 });
 
+test('giroconto programmato da confermare e aspetto scuro', async ({ page }) => {
+  await restoreExample(page);
+  // Risparmi → Fondo pensione, proposto dal 25: si conferma con un tocco e diventa un giroconto.
+  const row = page.getByRole('group').filter({ hasText: 'Versamento fondo' });
+  await expect(row).toContainText('Risparmi → Fondo pensione');
+  await row.getByRole('button').click();
+  await expect(page.getByText('Giroconto di 100,00 € salvato')).toBeVisible();
+  await expect(page.getByRole('group').filter({ hasText: 'Versamento fondo' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Impostazioni' }).click();
+  await page.getByRole('radio', { name: 'Scuro' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('radio', { name: 'Automatico' }).click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
+});
+
 test('blocco con PIN', async ({ page }) => {
   await restoreExample(page);
   await page.getByRole('button', { name: 'Impostazioni' }).click();

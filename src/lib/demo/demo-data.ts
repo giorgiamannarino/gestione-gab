@@ -34,8 +34,10 @@ export function demoData(todayDate: ISODate = todayFn()): AppData {
   const recurring: Recurring[] = [
     { id: 'assic', name: 'Assicurazione', kind: 'debit', amount: 2604, fromPocketId: 'isp', day: 23, categoryId: 'altro', active: true, order: 0 },
     { id: 'benzina', name: 'Benzina', kind: 'budget', amount: 9000, fromPocketId: 'isp', categoryId: 'carburante', active: true, order: 1 },
-    { id: 'fp', name: 'Fondo Pensione', kind: 'allocation', amount: 10000, fromPocketId: 'isp', toPocketId: 'fp', auto: true, active: true, order: 2 },
-    { id: 'pac', name: 'Piano Accumulo', kind: 'allocation', amount: 10000, fromPocketId: 'isp', toPocketId: 'pac', auto: true, active: true, order: 3 },
+    { id: 'fp', name: 'Fondo Pensione → Generali', kind: 'allocation', amount: 10000, fromPocketId: 'isp', toPocketId: 'bg', auto: true, active: true, order: 2 },
+    { id: 'pac', name: 'Piano Accumulo → Generali', kind: 'allocation', amount: 10000, fromPocketId: 'isp', toPocketId: 'bg', auto: true, active: true, order: 3 },
+    { id: 'fp-vers', name: 'Fondo Pensione', kind: 'debit', amount: 10000, fromPocketId: 'bg', toPocketId: 'fp', day: 8, active: true, order: 13 },
+    { id: 'pac-vers', name: 'Piano Accumulo', kind: 'debit', amount: 10000, fromPocketId: 'bg', toPocketId: 'pac', day: 8, active: true, order: 14 },
     { id: 'bollette', name: 'Fondo bollette', kind: 'allocation', amount: 10000, fromPocketId: 'isp', toPocketId: 'bollette', active: true, order: 4 },
     { id: 'abb', name: 'Abbonamenti', kind: 'allocation', amount: 0, amountFromDebits: true, fromPocketId: 'isp', toPocketId: 'abb', mode: 'topUp', active: true, order: 5 },
     { id: 'coppia', name: 'Coppia', kind: 'allocation', amount: 5000, fromPocketId: 'isp', toPocketId: 'coppia', active: true, order: 6 },
@@ -94,6 +96,10 @@ export function demoData(todayDate: ISODate = todayFn()): AppData {
           date = dd;
           break;
         }
+      }
+      if (r.toPocketId) {
+        add(date, 'transfer', [[r.fromPocketId, -r.amount], [r.toPocketId, r.amount]], r.name, 'sys-transfer', { source: 'recurring', autoKey: `rec:${r.id}:${p.key}` });
+        continue;
       }
       const e = add(date, 'expense', [[r.fromPocketId, -r.amount]], r.name, r.categoryId, { source: 'recurring', autoKey: `rec:${r.id}:${p.key}`, roundup: revolut.has(r.fromPocketId) || undefined });
       if (revolut.has(r.fromPocketId)) {
