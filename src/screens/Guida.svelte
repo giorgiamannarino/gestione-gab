@@ -99,7 +99,7 @@
 
   <details>
     <summary>Oggi puoi spendere, scadenze, etichette</summary>
-    <p><strong>Oggi puoi spendere</strong>: saldo del pocket scelto (Impostazioni → Stipendio e piano) diviso i giorni che mancano al {st.salaryDay}. Verde se sei in linea, arancio se un po' veloce, rosso se troppo veloce rispetto ai giorni passati.</p>
+    <p><strong>Oggi puoi spendere</strong> (pocket scelto in Impostazioni → Stipendio e piano): il budget del periodo è diviso in una quota al giorno. Quello che non hai speso nei giorni prima si somma a oggi, quello che hai speso in più si toglie. Verde: oggi hai almeno la quota piena. Arancio: un po' meno, perché nei giorni prima sei andato oltre. Se sei sotto il programma compare "Attenzione, stai spendendo più di quanto programmato in questi giorni", finché non torni in pari. Il 23 riparte da capo; dopo la ricarica del pocket nel Piano la quota si aggiorna.</p>
     <p><strong>Scadenze</strong> (Impostazioni → Scadenze): per bollo, assicurazione, università… l'app calcola quanto mettere da parte a ogni stipendio. Con "Aggiungi ai costi fissi" diventa uno spostamento della checklist del Piano. Il pagamento finale compare in Da confermare dai 10 giorni prima e scala l'importo dal pocket dove hai accantonato; se è annuale passa all'anno dopo e l'accantonamento diventa importo diviso 12.</p>
     <p><strong>Etichette</strong>: in "Data e nota" puoi dare un'etichetta a un movimento (es. "Weekend Roma"). In Statistiche vedi ogni evento con il totale speso e i suoi movimenti.</p>
   </details>

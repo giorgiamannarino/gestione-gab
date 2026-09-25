@@ -11,22 +11,27 @@ function daysBetween(a: ISODate, b: ISODate): number {
   return Math.round((Date.UTC(y.y, y.m - 1, y.d) - Date.UTC(x.y, x.m - 1, x.d)) / 86_400_000);
 }
 
-export type Pace = 'ok' | 'fast' | 'tooFast';
+/** ok: oggi c'è almeno la quota piena · tight: meno della quota (giorni prima un po' oltre) · over: sotto il programma. */
+export type Pace = 'ok' | 'tight' | 'over';
 
 /**
- * Quanto si può spendere oggi: saldo diviso i giorni che mancano a fine periodo (oggi compreso).
- * Il ritmo confronta quanto resta con quanto dovrebbe restare spendendo in modo uniforme:
- * con meno dell'85% del previsto si va "veloce", sotto il 65% "troppo veloce".
+ * Quanto si può spendere oggi, con i giorni precedenti che contano.
+ * Il budget del periodo (saldo + già speso nel periodo) si divide in una quota al giorno.
+ * Oggi = quote maturate fino a oggi compreso − speso nel periodo (oggi compreso):
+ * se nei giorni prima si è speso meno il risparmio si somma, se di più si sottrae.
+ * Mai più del saldo reale. Sotto zero si è "oltre il programma" finché non si torna in pari.
  */
 export function dailyAllowance(balance: Cents, spentSoFar: Cents, today: ISODate, p: Period) {
-  const daysLeft = Math.max(1, daysBetween(today, p.end) + 1);
   const daysTotal = daysBetween(p.start, p.end) + 1;
-  const perDay = Math.max(0, Math.floor(balance / daysLeft));
-  const budget = balance + spentSoFar;
-  const expected = budget > 0 ? (budget * daysLeft) / daysTotal : 0;
-  const ratio = expected > 0 ? balance / expected : 1;
-  const pace: Pace = balance <= 0 ? 'tooFast' : ratio < 0.65 ? 'tooFast' : ratio < 0.85 ? 'fast' : 'ok';
-  return { perDay, daysLeft, pace, expected: Math.round(expected) };
+  const dayIndex = Math.min(daysTotal, Math.max(1, daysBetween(p.start, today) + 1));
+  const daysLeft = daysTotal - dayIndex + 1;
+  const budget = Math.max(0, balance + spentSoFar);
+  const daily = Math.floor(budget / daysTotal);
+  const planned = Math.floor((budget * dayIndex) / daysTotal);
+  const raw = planned - spentSoFar;
+  const today_ = Math.min(raw, Math.max(0, balance));
+  const pace: Pace = raw < 0 ? 'over' : raw < daily ? 'tight' : 'ok';
+  return { today: Math.max(0, today_), overBy: raw < 0 ? -raw : 0, daily, daysLeft, dayIndex, pace };
 }
 
 /** Quanti stipendi arrivano da domani fino alla scadenza compresa (almeno 1). */

@@ -5,19 +5,33 @@ import { tx } from './fixtures';
 
 describe('oggi puoi spendere', () => {
   const p = periodOf('2030-11-01', 23); // 23 ott – 22 nov: 31 giorni
+  // Budget 310 € → 10 € al giorno. Il 27 ottobre è il 5° giorno: maturati 50 €.
+  const on27 = (spent: number) => dailyAllowance(31000 - spent, spent, '2030-10-27', p);
 
-  it('saldo diviso i giorni che mancano (oggi compreso)', () => {
-    const r = dailyAllowance(15840, 24160, '2030-11-11', p); // 12 giorni al 22 compreso
-    expect(r.daysLeft).toBe(12);
-    expect(r.perDay).toBe(1320);
+  it('quota giornaliera e giorni che mancano', () => {
+    expect(on27(4000)).toMatchObject({ daily: 1000, dayIndex: 5, daysLeft: 27 });
   });
 
-  it('ritmo: in linea, veloce, troppo veloce', () => {
-    // Budget 400 €, a metà periodo circa.
-    expect(dailyAllowance(20000, 20000, '2030-11-07', p).pace).toBe('ok');
-    expect(dailyAllowance(15000, 25000, '2030-11-07', p).pace).toBe('fast');
-    expect(dailyAllowance(10000, 30000, '2030-11-07', p).pace).toBe('tooFast');
-    expect(dailyAllowance(0, 40000, '2030-11-07', p)).toMatchObject({ perDay: 0, pace: 'tooFast' });
+  it('in linea: oggi la quota piena', () => {
+    expect(on27(4000)).toMatchObject({ today: 1000, pace: 'ok' });
+  });
+
+  it('se nei giorni prima si è speso meno, il risparmio si somma', () => {
+    expect(on27(1500)).toMatchObject({ today: 3500, pace: 'ok' }); // 50 − 15
+  });
+
+  it('se si è speso di più, si toglie dalla quota di oggi', () => {
+    expect(on27(4600)).toMatchObject({ today: 400, pace: 'tight' }); // 50 − 46
+  });
+
+  it('sotto il programma: avviso finché non si torna in pari', () => {
+    expect(on27(6200)).toMatchObject({ today: 0, overBy: 1200, pace: 'over' });
+    // Qualche giorno dopo senza spese si torna in pari: 9° giorno, maturati 90 €.
+    expect(dailyAllowance(31000 - 6200, 6200, '2030-10-31', p)).toMatchObject({ today: 2800, pace: 'ok' });
+  });
+
+  it('mai più del saldo reale', () => {
+    expect(dailyAllowance(500, 0, '2030-11-20', p).today).toBeLessThanOrEqual(500);
   });
 });
 

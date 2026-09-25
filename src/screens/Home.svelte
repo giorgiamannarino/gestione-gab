@@ -135,9 +135,13 @@
         {#if daily}
           <button class="daily pace-{daily.pace}" onclick={() => open(daily.pocket)}>
             <span class="daily-label">Oggi puoi spendere</span>
-            <Amount cents={daily.perDay} size="lg" />
-            <span class="c-3 small">su {daily.pocket.name}<br />{daily.daysLeft === 1 ? 'ultimo giorno' : `${daily.daysLeft} giorni al ${app.data.settings.salaryDay}`}</span>
-            <span class="pace">{daily.pace === 'ok' ? 'In linea' : daily.pace === 'fast' ? 'Un po’ veloce' : 'Troppo veloce'}</span>
+            {#if daily.pace === 'over'}
+              <span class="over-text">Attenzione, stai spendendo più di quanto programmato in questi giorni</span>
+            {:else}
+              <Amount cents={daily.today} size="lg" />
+            {/if}
+            <span class="c-3 small">su {daily.pocket.name} · quota {privacy.hidden ? '•••' : formatCents(daily.daily)} al giorno<br />{daily.daysLeft === 1 ? 'ultimo giorno' : `${daily.daysLeft} giorni al ${app.data.settings.salaryDay}`}</span>
+            <span class="pace">{daily.pace === 'ok' ? 'In linea' : daily.pace === 'tight' ? 'Un po’ oltre' : 'Oltre il programma'}</span>
           </button>
         {/if}
         {#if backupOld}
@@ -458,13 +462,20 @@
   .backup-tile .small {
     margin-bottom: var(--sp-3);
   }
-  .daily.pace-fast {
+  .daily.pace-tight {
     --c: var(--warning);
     --f: var(--warning-fill);
   }
-  .daily.pace-tooFast {
+  .daily.pace-over {
     --c: var(--negative);
     --f: var(--negative-fill);
+  }
+  .over-text {
+    color: var(--negative);
+    font-weight: var(--fw-bold);
+    font-size: var(--fs-callout);
+    line-height: 1.35;
+    margin: 2px 0;
   }
   .daily-text {
     display: flex;

@@ -301,6 +301,17 @@ test('oggi puoi spendere, scadenze annuali ed etichette', async ({ page }) => {
   await expect(daily).toContainText('26 giorni al 23');
   // Backup appena ripristinato: niente promemoria, il quadrato occupa tutta la riga.
   await expect(page.locator('.backup-tile')).toHaveCount(0);
+  await expect(daily).toContainText('In linea');
+
+  // Una spesa grossa su Svago: si va oltre il programma e compare l'avviso.
+  await page.getByRole('button', { name: 'Nuovo movimento' }).click();
+  await page.getByLabel('Descrizione').fill('Concerto');
+  await page.getByRole('dialog').getByRole('button', { name: 'Svago', exact: true }).first().click();
+  for (const k of ['2', '5', '0']) await page.getByRole('group', { name: 'Tastierino numerico' }).getByRole('button', { name: k, exact: true }).click();
+  await page.getByRole('button', { name: 'Salva', exact: true }).click();
+  await expect(daily).toContainText('Attenzione, stai spendendo più di quanto programmato in questi giorni');
+  await page.getByRole('button', { name: 'Annulla' }).click();
+  await expect(daily).toContainText('In linea');
 
   // Scadenza: bollo da 180 € il 10 marzo → 4 stipendi prima → 45 € a stipendio.
   await page.getByRole('button', { name: 'Impostazioni' }).click();
