@@ -121,7 +121,11 @@ export interface Settings {
   salaryCategoryId?: Id;
   /** Margine che resta sempre su Intesa. */
   safetyMargin: Cents;
-  nextBill?: { month: string; amount: Cents };
+  /**
+   * Prossima bolletta stimata. `month` è il mese di calendario atteso; se a fine periodo
+   * non è ancora uscita, `period` indica il periodo di stipendio a cui è stata rimandata.
+   */
+  nextBill?: { month: string; amount: Cents; period?: string };
   weeklyBackupReminder: boolean;
   /** Promemoria serale per inserire i movimenti del giorno. */
   eveningReminder?: boolean;

@@ -6,6 +6,7 @@
   import { periodLabel } from '../lib/domain/dates';
   import type { Id } from '../lib/domain/types';
   import type { PlanLine } from '../lib/domain/plan';
+  import { billShortfall } from '../lib/domain/stats';
   import { color, icon } from '../lib/ui/icons';
   import { privacy } from '../lib/ui/privacy.svelte';
   import Amount from '../ui/Amount.svelte';
@@ -29,7 +30,18 @@
   let salaryInput = $state('');
   let salaryError = $state('');
   let savingInput = $state('');
-  const saveAmount = $derived(parseEuroInput(savingInput) ?? plan.saveable);
+  // Bollette attese in questo periodo: quanto mancherà nel fondo va tolto dal risparmio proposto.
+  const billsPocket = $derived(app.data.pockets.find((p) => p.role === 'bills' && !p.archived));
+  const billInfo = $derived.by(() => {
+    const bill = app.billThisPeriod;
+    if (!bill || !billsPocket) return null;
+    const fund = app.balances.get(billsPocket.id) ?? 0;
+    const line = plan.others.find((l) => l.toPocketId === billsPocket.id);
+    const allocation = line && !app.planStatus(line) ? line.amount : 0; // se già spostato è già nel fondo
+    return { estimate: bill.estimate, fund, allocation, shortfall: billShortfall(fund, allocation, bill.estimate) };
+  });
+  const proposal = $derived(Math.max(0, plan.saveable - (billInfo?.shortfall ?? 0)));
+  const saveAmount = $derived(parseEuroInput(savingInput) ?? proposal);
   const savedTx = $derived(app.txByKey(`plan:save:${key}`));
   const leftoverTx = $derived(app.txByKey(`plan:leftover:${key}`));
   const checklistDone = $derived([...plan.revolut, ...plan.others].every((l) => done(l.recurringId)));
@@ -80,9 +92,13 @@
       <ArrowRight size={16} class="arrow" />
       <div class="sum-row"><span class="c-3">Fissi e pocket</span><Amount cents={plan.fixedTotal} size="lg" /></div>
       <ArrowRight size={16} class="arrow" />
-      <div class="sum-row strong"><span>Puoi mettere da parte</span><Amount cents={plan.saveable} size="lg" /></div>
+      {#if billInfo?.shortfall}
+        <ArrowRight size={16} class="arrow" />
+        <div class="sum-row"><span class="c-3">Da tenere per le bollette</span><Amount cents={billInfo.shortfall} size="lg" /></div>
+      {/if}
+      <div class="sum-row strong"><span>Puoi mettere da parte</span><Amount cents={proposal} size="lg" /></div>
       <p class="sr-only-sentence c-3 small">
-        Stipendio {eur(salary)} → fissi e pocket {eur(plan.fixedTotal)}{plan.safetyMargin ? ` → margine ${eur(plan.safetyMargin)}` : ''} → puoi mettere da parte {eur(plan.saveable)}
+        Stipendio {eur(salary)} → fissi e pocket {eur(plan.fixedTotal)}{plan.safetyMargin ? ` → margine ${eur(plan.safetyMargin)}` : ''}{billInfo?.shortfall ? ` → bollette ${eur(billInfo.shortfall)}` : ''} → puoi mettere da parte {eur(proposal)}
       </p>
     </section>
 
@@ -131,15 +147,30 @@
       </Card>
     {/if}
 
+    {#if billInfo}
+      <Card title="Bollette attese in questo periodo">
+        <p class="c-2 small">
+          Stima {eur(billInfo.estimate)}. Nel fondo ci sono {eur(billInfo.fund)}{billInfo.allocation ? ` e con l'accantonamento del mese si arriva a ${eur(billInfo.fund + billInfo.allocation)}` : ''}.
+          {#if billInfo.shortfall > 0}
+            Mancheranno circa <strong>{eur(billInfo.shortfall)}</strong>, che verranno presi da {app.savingsTarget?.name ?? 'Risparmi'}: li ho già tolti dalla proposta di risparmio qui sotto.
+          {:else}
+            Il fondo basta.
+          {/if}
+        </p>
+      </Card>
+    {/if}
+
     {#if app.savingsTarget}
       <Card title="Metti da parte">
-        <p class="c-2 small">Proposta: sposta su {app.savingsTarget.name} quello che avanza dopo fissi e pocket.</p>
+        <p class="c-2 small">
+          Proposta: sposta su {app.savingsTarget.name} quello che avanza dopo fissi e pocket{billInfo?.shortfall ? `, meno i ${eur(billInfo.shortfall)} che serviranno per le bollette` : ''}.
+        </p>
         {#if savedTx}
           <div class="done-box"><CircleCheck size={18} /> Spostati <Amount cents={savedTx.legs[1]?.amount ?? 0} /> su {app.savingsTarget.name}</div>
           <Button variant="ghost" onclick={() => moveToSavings(0, 'save', '')}>Annulla lo spostamento</Button>
         {:else}
           <div class="salary-form">
-            <TextField label="Importo" inputmode="decimal" placeholder={formatCents(plan.saveable, { symbol: false })} bind:value={savingInput} hint="Lascia vuoto per usare la proposta." />
+            <TextField label="Importo" inputmode="decimal" placeholder={formatCents(proposal, { symbol: false })} bind:value={savingInput} hint="Lascia vuoto per usare la proposta." />
             <Button size="lg" block disabled={saveAmount <= 0} onclick={() => moveToSavings(saveAmount, 'save', 'Risparmio del mese')}>
               <PiggyBank size={18} /> Sposta {eur(saveAmount)}
             </Button>

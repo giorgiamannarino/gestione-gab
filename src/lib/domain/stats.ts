@@ -73,6 +73,20 @@ export function splitBill(fund: Cents, bill: Cents): { rest: Cents; shortfall: C
   return { rest: Math.max(0, available - bill), shortfall: Math.max(0, bill - available) };
 }
 
+/**
+ * La bolletta è attesa nel periodo? Se è stata rimandata vale il periodo indicato,
+ * altrimenti il mese di calendario (atteso se cade dentro il periodo o è già passato).
+ */
+export function billExpectedIn(bill: { month: string; period?: string }, p: Period): boolean {
+  if (bill.period) return p.key >= bill.period;
+  return bill.month <= p.end.slice(0, 7);
+}
+
+/** Quanto mancherà nel fondo per la bolletta attesa, dopo l'accantonamento del periodo. */
+export function billShortfall(fund: Cents, allocation: Cents, estimate: Cents): Cents {
+  return Math.max(0, estimate - Math.max(0, fund) - allocation);
+}
+
 /** Mese "YYYY-MM" spostato di n mesi. */
 export function addMonths(month: string, n: number): string {
   const [y, m] = month.split('-').map(Number);

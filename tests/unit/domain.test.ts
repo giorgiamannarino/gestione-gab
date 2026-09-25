@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { balances, balanceSeries, sumBalances } from '../../src/lib/domain/balances';
 import { periodLabel, periodOf, shiftPeriod } from '../../src/lib/domain/dates';
 import { buildPlan, forecastAllocation, recurringAmount } from '../../src/lib/domain/plan';
-import { addMonths, budgetSpent, dailySpending, dueDebits, pocketPeriodStats, spendingByCategory, splitBill, totalSpending } from '../../src/lib/domain/stats';
+import { addMonths, billExpectedIn, billShortfall, budgetSpent, dailySpending, dueDebits, pocketPeriodStats, spendingByCategory, splitBill, totalSpending } from '../../src/lib/domain/stats';
 import { buildAdjustment, buildEntry, roundupPreview, roundupTxFor } from '../../src/lib/domain/transactions';
 import { ctx, pockets, recurring, tx } from './fixtures';
 
@@ -187,6 +187,20 @@ describe('bollette', () => {
     expect(splitBill(20000, 23000)).toEqual({ rest: 0, shortfall: 3000 });
     expect(splitBill(-500, 1000)).toEqual({ rest: 0, shortfall: 1000 });
   });
+  it('bolletta attesa nel periodo: per mese o, se rimandata, per periodo', () => {
+    const ott = periodOf('2030-10-25', 23); // 23 ott – 22 nov
+    expect(billExpectedIn({ month: '2030-11' }, ott)).toBe(true);
+    expect(billExpectedIn({ month: '2030-12' }, ott)).toBe(false);
+    expect(billExpectedIn({ month: '2030-10', period: '2030-11' }, ott)).toBe(false); // rimandata al periodo dopo
+    expect(billExpectedIn({ month: '2030-10', period: '2030-10' }, ott)).toBe(true);
+  });
+
+  it('quanto mancherà nel fondo, contando l\'accantonamento', () => {
+    expect(billShortfall(8000, 10000, 20000)).toBe(2000);
+    expect(billShortfall(15000, 10000, 20000)).toBe(0);
+    expect(billShortfall(-500, 10000, 12000)).toBe(2000);
+  });
+
   it('prossima bolletta dopo due mesi, anche a cavallo d\'anno', () => {
     expect(addMonths('2030-11', 2)).toBe('2031-01');
   });

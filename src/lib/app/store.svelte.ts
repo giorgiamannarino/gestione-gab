@@ -3,12 +3,12 @@
  * Ogni azione scrive nel database e poi ricarica: il database è l'unica fonte di verità.
  */
 import { balances } from '../domain/balances';
-import { today, periodOf, shiftPeriod, type Period } from '../domain/dates';
+import { addDays, monthName, today, periodOf, shiftPeriod, type Period } from '../domain/dates';
 import { formatCents } from '../domain/money';
 import { buildAdjustment, buildEntry, type Ctx, type EntryInput } from '../domain/transactions';
 import { DEFAULT_SETTINGS, type AppData, type Id, type Recurring, type Settings, type Transaction } from '../domain/types';
 import { buildPlan } from '../domain/plan';
-import { addMonths, splitBill } from '../domain/stats';
+import { addMonths, billExpectedIn, splitBill } from '../domain/stats';
 import {
   deleteItem, deleteTransaction, getBackupInfo, getMeta, loadAll, openAppDb, pendingChanges, putItem, putTransactions,
   replaceAll, restoreTransactions, saveEntry, saveSettings, setMeta, type BackupInfo, type DB,
@@ -42,21 +42,53 @@ class AppStore {
     return { pockets: this.data.pockets, newId: () => crypto.randomUUID(), now: () => Date.now() };
   }
 
-  /** "Non ancora" sul banner delle bollette: nascosto fino a domani. */
-  billSnooze = $state('');
+  /** "Non ancora" sul banner delle bollette: nascosto fino a questa data (esclusa). */
+  billSnoozeUntil = $state('');
 
-  /** Dal mese della prossima bolletta stimata, finché non viene registrata. */
-  get billDue(): { month: string; estimate: number } | null {
+  /**
+   * Banner delle bollette: dal mese stimato (o dal periodo a cui sono state rimandate),
+   * finché non vengono registrate. "Non ancora" lo nasconde per 5 giorni, tranne l'ultimo
+   * giorno del periodo di stipendio, quando si chiede sempre conferma (`lastDay`).
+   */
+  get billDue(): { month: string; estimate: number; lastDay: boolean } | null {
     const nb = this.data.settings.nextBill;
     const bills = this.data.pockets.find((p) => p.role === 'bills' && !p.archived);
-    if (!nb || !bills || this.today.slice(0, 7) < nb.month || this.billSnooze === this.today) return null;
-    if (this.txByKey(`bill:${nb.month}`)) return null;
-    return { month: nb.month, estimate: nb.amount };
+    if (!nb || !bills || this.txByKey(`bill:${nb.month}`)) return null;
+    const reached = nb.period ? this.period.key >= nb.period : this.today.slice(0, 7) >= nb.month;
+    if (!reached) return null;
+    const lastDay = this.today === this.period.end;
+    if (!lastDay && this.today < this.billSnoozeUntil) return null;
+    return { month: nb.month, estimate: nb.amount, lastDay };
+  }
+
+  /** Bollette attese nel periodo in corso (per il Piano), anche se il banner è nascosto. */
+  get billThisPeriod(): { estimate: number } | null {
+    const nb = this.data.settings.nextBill;
+    if (!nb || this.txByKey(`bill:${nb.month}`) || !billExpectedIn(nb, this.period)) return null;
+    return { estimate: nb.amount };
   }
 
   async snoozeBill(): Promise<void> {
-    this.billSnooze = this.today;
-    await setMeta(this.db!, 'billSnooze', this.today);
+    this.billSnoozeUntil = addDays(this.today, 5);
+    await setMeta(this.db!, 'billSnoozeUntil', this.billSnoozeUntil);
+  }
+
+  /** Ultimo giorno del periodo, bollette non ancora uscite: passano al periodo successivo. */
+  async deferBill(): Promise<void> {
+    const nb = this.data.settings.nextBill;
+    if (!nb) return;
+    const before = $state.snapshot(this.data.settings) as Settings;
+    const next = shiftPeriod(this.period, 1, this.data.settings.salaryDay);
+    await saveSettings(this.db!, { ...before, nextBill: { ...nb, period: next.key } });
+    this.billSnoozeUntil = '';
+    await setMeta(this.db!, 'billSnoozeUntil', '');
+    await this.reload();
+    showToast(`Bollette spostate al periodo dal ${Number(next.start.slice(8))} ${monthName(Number(next.start.slice(5, 7)))}`, {
+      undo: async () => {
+        await saveSettings(this.db!, before);
+        await this.reload();
+      },
+    });
   }
 
   /**
@@ -122,7 +154,7 @@ class AppStore {
       this.db = await openAppDb();
       await this.reload();
       this.onboarded = await getMeta(this.db, 'onboarded', false);
-      this.billSnooze = await getMeta(this.db, 'billSnooze', '');
+      this.billSnoozeUntil = await getMeta(this.db, 'billSnoozeUntil', '');
       this.persisted = (await navigator.storage?.persisted?.()) ?? null;
     } catch (e) {
       this.error = "Non riesco ad aprire i dati sul telefono. Chiudi e riapri l'app; se il problema resta, ripristina un backup.";

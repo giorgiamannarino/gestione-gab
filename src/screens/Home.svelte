@@ -127,15 +127,27 @@
 
     {#if app.billDue}
       {@const due = app.billDue}
-      <InlineMessage tone="info" title="Sono arrivate le bollette di {monthName(Number(due.month.slice(5, 7)))}?">
-        Stima: {privacy.hidden ? '•••' : formatCents(due.estimate)}. Nel fondo ci sono {privacy.hidden ? '•••' : formatCents(billFund)}.
-        {#snippet action()}
-          <div class="msg-actions">
-            <Button variant="secondary" onclick={openBill}>Sì, inserisci</Button>
-            <Button variant="ghost" onclick={() => app.snoozeBill()}>Non ancora</Button>
-          </div>
-        {/snippet}
-      </InlineMessage>
+      {#if due.lastDay}
+        <InlineMessage tone="warning" title="Ultimo giorno del periodo: le bollette non sono ancora uscite dal conto?">
+          Stima {privacy.hidden ? '•••' : formatCents(due.estimate)}. Se confermi, le considero nel prossimo periodo di stipendio.
+          {#snippet action()}
+            <div class="msg-actions">
+              <Button variant="secondary" onclick={openBill}>Sono uscite, inserisci</Button>
+              <Button variant="ghost" onclick={() => app.deferBill()}>Confermo, non ancora</Button>
+            </div>
+          {/snippet}
+        </InlineMessage>
+      {:else}
+        <InlineMessage tone="info" title="Sono arrivate le bollette di {monthName(Number(due.month.slice(5, 7)))}?">
+          Stima: {privacy.hidden ? '•••' : formatCents(due.estimate)}. Nel fondo ci sono {privacy.hidden ? '•••' : formatCents(billFund)}.
+          {#snippet action()}
+            <div class="msg-actions">
+              <Button variant="secondary" onclick={openBill}>Sì, inserisci</Button>
+              <Button variant="ghost" onclick={() => app.snoozeBill()}>Non ancora</Button>
+            </div>
+          {/snippet}
+        </InlineMessage>
+      {/if}
     {/if}
 
     {#if app.eveningReminderDue}

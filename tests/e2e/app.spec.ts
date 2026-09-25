@@ -227,6 +227,40 @@ test('bollette: se costano più del fondo, la differenza arriva dai risparmi', a
   await expect(page.getByRole('button', { name: /^Fondo bollette/ })).toContainText('0,00');
 });
 
+test('bollette: "Non ancora" per 5 giorni, ultimo giorno si chiede conferma e si rimanda al periodo dopo', async ({ page }) => {
+  const at = async (d: string) => {
+    await page.waitForTimeout(300); // lascia finire il salvataggio prima di ricaricare
+    await page.clock.setFixedTime(new Date(`${d}T10:00:00+01:00`));
+    await page.reload();
+  };
+  const banner = page.getByText('Sono arrivate le bollette di novembre?');
+  await restoreExample(page);
+
+  await at('2030-11-05');
+  await page.getByRole('button', { name: 'Non ancora' }).click();
+  await expect(banner).toHaveCount(0);
+  await at('2030-11-09');
+  await expect(banner).toHaveCount(0); // ancora nei 5 giorni
+  await at('2030-11-10');
+  await expect(banner).toBeVisible(); // dopo 5 giorni torna
+  await page.getByRole('button', { name: 'Non ancora' }).click();
+
+  // Ultimo giorno del periodo (22): si chiede comunque, anche se rimandato da poco.
+  await at('2030-11-22');
+  await expect(page.getByText('Ultimo giorno del periodo: le bollette non sono ancora uscite dal conto?')).toBeVisible();
+  await page.getByRole('button', { name: 'Confermo, non ancora' }).click();
+  await expect(page.getByText(/Bollette spostate al periodo dal 23 novembre/)).toBeVisible();
+  await expect(page.getByText(/Ultimo giorno del periodo/)).toHaveCount(0);
+
+  // Nuovo periodo: il banner torna e il Piano ne tiene conto.
+  await at('2030-11-23');
+  await expect(banner).toBeVisible();
+  await page.getByRole('button', { name: 'Piano', exact: true }).click();
+  await page.getByLabel('Stipendio').fill('2.345');
+  await page.getByRole('button', { name: 'Registra stipendio' }).click();
+  await expect(page.getByRole('heading', { name: 'Bollette attese in questo periodo' })).toBeVisible();
+});
+
 test('pagina del pocket con previsione e saluto', async ({ page }) => {
   await restoreExample(page);
   await expect(page.getByRole('heading', { name: 'Buongiorno' })).toBeVisible(); // ore 10
