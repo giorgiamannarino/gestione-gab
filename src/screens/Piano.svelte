@@ -249,7 +249,7 @@
         </span>
       {:else if l.dueDate}
         <span class="topup">
-          su {to?.name} · scade il {Number(l.dueDate.slice(8))} {monthName(Number(l.dueDate.slice(5, 7)))} · {l.paydays === 1 ? 'ultimo stipendio prima della scadenza' : `ancora ${l.paydays} stipendi, questo compreso`}
+          {l.fromPocketId !== app.mainPocket?.id ? `da ${pocket(l.fromPocketId)?.name} ` : ''}su {to?.name} · scade il {Number(l.dueDate.slice(8))} {monthName(Number(l.dueDate.slice(5, 7)))} · {l.paydays === 1 ? 'ultimo stipendio prima della scadenza' : `ancora ${l.paydays} stipendi, questo compreso`}
         </span>
       {/if}
     </span>

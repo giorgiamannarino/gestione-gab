@@ -75,11 +75,11 @@ class AppStore {
     const main = this.mainPocket;
     if (!main) return [];
     return this.deadlines
-      .filter((d) => d.pocketId !== main.id)
+      .filter((d) => d.pocketId !== (d.fromPocketId ?? main.id))
       .map((d) => {
         const p = this.deadlinePlan(d);
         return {
-          recurringId: this.deadlineLineId(d), name: d.name, fromPocketId: main.id, toPocketId: d.pocketId,
+          recurringId: this.deadlineLineId(d), name: d.name, fromPocketId: d.fromPocketId ?? main.id, toPocketId: d.pocketId,
           amount: p.amount, target: p.amount, mode: 'full' as const, dueDate: d.dueDate, paydays: p.paydays,
         };
       });

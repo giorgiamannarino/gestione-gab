@@ -152,9 +152,11 @@ export function buildPlan(input: {
     .map(line);
 
   const deadlines = (input.deadlines ?? []).filter((l) => l.amount > 0);
+  // Dallo stipendio si tolgono solo le scadenze accantonate dal conto principale.
+  const fromSalary = deadlines.filter((l) => l.fromPocketId === mainPocketId);
 
   const sum = (ls: PlanLine[]) => ls.reduce((a, l) => a + l.amount, 0);
-  const fixedTotal = sum(auto) + sum(revolut) + sum(others) + sum(deadlines) + sum(keep);
+  const fixedTotal = sum(auto) + sum(revolut) + sum(others) + sum(fromSalary) + sum(keep);
   const margin = splitMargin(input.safetyMargin, input.leftover);
   return {
     auto,

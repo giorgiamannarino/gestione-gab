@@ -443,6 +443,17 @@ test('importi con i decimali: scadenze, spese fisse, errori chiari', async ({ pa
   await expect(page.getByRole('button', { name: /Bollo auto/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Assicurazione.*2031/ })).toBeVisible();
 
+  // Scadenza accantonata prelevando da Risparmi invece che dal conto principale.
+  await page.getByRole('button', { name: 'Aggiungi una scadenza' }).click();
+  await sheet.getByLabel('Nome').fill('Università');
+  await sheet.getByLabel('Importo').fill('600');
+  await sheet.getByLabel('Data della scadenza').fill('2031-01-10');
+  await sheet.getByRole('button', { name: 'Risparmi', exact: true }).nth(1).click(); // "Da dove prelevare"
+  await sheet.getByRole('button', { name: 'Fondo bollette', exact: true }).first().click(); // "Dove accantonare"
+  await expect(sheet.getByText(/non si toglie da quanto puoi mettere da parte/)).toBeVisible();
+  await sheet.getByRole('button', { name: 'Salva', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Università/ })).toContainText('Risparmi → Fondo bollette');
+
   // Spesa fissa con il punto come separatore decimale.
   await page.getByRole('button', { name: 'Aggiungi una voce' }).click();
   await sheet.getByLabel('Nome').fill('Palestra');

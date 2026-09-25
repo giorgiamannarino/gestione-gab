@@ -145,6 +145,8 @@ export interface Deadline {
   dueDate: ISODate;
   /** Pocket dove si accantona e da cui si paga. */
   pocketId: Id;
+  /** Pocket da cui si prelevano gli accantonamenti (default: il conto principale). */
+  fromPocketId?: Id;
   /** Si ripete ogni anno. */
   annual: boolean;
   /** Dai 7 giorni prima compare in "Da confermare". */

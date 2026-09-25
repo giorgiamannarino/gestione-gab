@@ -132,6 +132,13 @@ describe('piano di inizio mese', () => {
     expect(plan.saveable).toBe(99196 - 3600);
   });
 
+  it('le scadenze accantonate da un altro pocket sono nella checklist ma non si tolgono dallo stipendio', () => {
+    const line = { recurringId: 'dl-x', name: 'Università', fromPocketId: 'love', toPocketId: 'fun', amount: 5000, target: 5000, mode: 'full' as const };
+    const plan = buildPlan({ salary: 234500, recurring, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 6225, deadlines: [line] });
+    expect(plan.deadlines.map((l) => l.name)).toEqual(['Università']);
+    expect(plan.fixedTotal).toBe(135304);
+  });
+
   it('considera il margine di sicurezza e non va mai sotto zero', () => {
     expect(buildPlan({ salary: 234500, recurring, pockets, mainPocketId: 'main', safetyMargin: 10000, leftover: 0 }).saveable).toBe(89196);
     expect(buildPlan({ salary: 100000, recurring, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 0 }).saveable).toBe(0);

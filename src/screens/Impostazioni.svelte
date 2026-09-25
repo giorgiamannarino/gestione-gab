@@ -192,6 +192,7 @@
       annual: true, remind: true,
     };
     dlEdit = { ...($state.snapshot(base) as Deadline), amountText: base.amount ? formatCents(base.amount, { symbol: false }) : '' };
+    dlEdit.fromPocketId ??= app.mainPocket?.id;
     dlTried = false;
   }
   const dlAmount = $derived(dlEdit ? parseEuroInput(dlEdit.amountText) : null);
@@ -199,14 +200,16 @@
     name: dlEdit?.name.trim() ? '' : 'Scrivi il nome.',
     amount: dlEdit ? euroInputError(dlEdit.amountText) : '',
     date: dlEdit?.dueDate ? '' : 'Scegli la data della scadenza.',
-    pocket: dlEdit && app.data.pockets.some((p) => p.id === dlEdit!.pocketId) ? '' : 'Scegli dove accantonare.',
+    pocket: !dlEdit || !app.data.pockets.some((p) => p.id === dlEdit!.pocketId) ? 'Scegli dove accantonare.'
+      : dlEdit.pocketId === dlEdit.fromPocketId ? 'Scegli un pocket diverso da quello da cui prelevi.' : '',
   });
   async function saveDeadline() {
     if (!dlEdit) return;
     dlTried = true;
     if (Object.values(dlErrors).some(Boolean) || dlAmount === null) return;
     const { amountText: _a, ...d } = dlEdit;
-    await app.saveDeadline({ ...d, name: d.name.trim(), amount: dlAmount });
+    // Dal conto principale è il comportamento predefinito: non si salva, così segue il conto principale se cambia.
+    await app.saveDeadline({ ...d, name: d.name.trim(), amount: dlAmount, fromPocketId: d.fromPocketId === app.mainPocket?.id ? undefined : d.fromPocketId });
     dlEdit = null;
     showToast('Scadenza salvata', { tone: 'success' });
   }
@@ -447,7 +450,7 @@
           title={d.name}
           subtitle={[
             `${formatDate(d.dueDate)}${d.annual ? ', ogni anno' : ''}`,
-            `su ${pocketName(d.pocketId)}`,
+            d.fromPocketId && d.fromPocketId !== app.mainPocket?.id ? `${pocketName(d.fromPocketId)} → ${pocketName(d.pocketId)}` : `su ${pocketName(d.pocketId)}`,
             plan.paydays === 0 ? 'da pagare' : plan.amount === 0 ? 'già coperta' : `${formatCents(plan.amount)} a stipendio (${plan.paydays === 1 ? 'ultimo' : `ancora ${plan.paydays}`})`,
           ].join(' · ')}
           onclick={() => editDeadline(d)}
@@ -524,9 +527,16 @@
       <TextField label="Data della scadenza" type="date" bind:value={dlEdit.dueDate} error={dlTried ? dlErrors.date : ''} />
       <p class="flabel">Dove accantonare (e da dove pagare)</p>
       <div class="chips">
-        {#each app.activePockets.filter((p) => p.id !== app.mainPocket?.id) as p (p.id)}<Chip label={p.name} color={color(p.color)} selected={dlEdit.pocketId === p.id} onclick={() => (dlEdit!.pocketId = p.id)} />{/each}
+        {#each app.activePockets.filter((p) => p.id !== dlEdit!.fromPocketId) as p (p.id)}<Chip label={p.name} color={color(p.color)} selected={dlEdit.pocketId === p.id} onclick={() => (dlEdit!.pocketId = p.id)} />{/each}
       </div>
       {#if dlTried && dlErrors.pocket}<p class="err small">{dlErrors.pocket}</p>{/if}
+      <p class="flabel">Da dove prelevare a ogni stipendio</p>
+      <div class="chips">
+        {#each app.activePockets as p (p.id)}<Chip label={p.name} color={color(p.color)} selected={dlEdit.fromPocketId === p.id} onclick={() => (dlEdit!.fromPocketId = p.id)} />{/each}
+      </div>
+      {#if dlEdit.fromPocketId && dlEdit.fromPocketId !== app.mainPocket?.id}
+        <p class="c-3 small">Non parte dal conto dello stipendio: nel Piano resta da spuntare, ma non si toglie da quanto puoi mettere da parte.</p>
+      {/if}
       {#if dlAmount && dlAmount > 0 && dlEdit.dueDate}
         {@const plan = app.deadlinePlan({ ...dlEdit, amount: dlAmount })}
         <p class="c-2 small">
