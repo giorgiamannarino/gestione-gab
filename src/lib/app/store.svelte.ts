@@ -71,7 +71,12 @@ class AppStore {
     const { rest, shortfall } = splitBill(this.balances.get(bills.id) ?? 0, amount);
     const ctx = this.ctx();
     const category = this.data.categories.find((c) => c.id === 'bollette' && !c.archived)?.id;
-    const txs = [buildEntry({ kind: 'expense', date, amount, fromPocketId: bills.id, description: 'Bollette', categoryId: category, source: 'plan', autoKey: `bill:${due.month}` }, ctx)];
+    const txs: Transaction[] = [];
+    // Il fondo non basta: la differenza arriva prima dai risparmi, così il fondo non va in negativo.
+    if (shortfall > 0 && reserve) {
+      txs.push(buildEntry({ kind: 'transfer', date, amount: shortfall, fromPocketId: reserve.id, splits: [{ pocketId: bills.id, amount: shortfall }], description: 'Integrazione bollette', categoryId: 'sys-transfer', source: 'plan', autoKey: `bill-cover:${due.month}` }, ctx));
+    }
+    txs.push(buildEntry({ kind: 'expense', date, amount, fromPocketId: bills.id, description: 'Bollette', categoryId: category, source: 'plan', autoKey: `bill:${due.month}` }, ctx));
     if (rest > 0 && reserve) {
       txs.push(buildEntry({ kind: 'transfer', date, amount: rest, fromPocketId: bills.id, splits: [{ pocketId: reserve.id, amount: rest }], description: 'Avanzo bollette', categoryId: 'sys-transfer', source: 'plan', autoKey: `bill-rest:${due.month}` }, ctx));
     }
@@ -82,12 +87,14 @@ class AppStore {
     await this.reload();
     const message =
       shortfall > 0
-        ? `Bollette registrate: il fondo non bastava, mancano ${formatCents(shortfall)}`
+        ? reserve
+          ? `Bollette registrate, ${formatCents(shortfall)} presi da ${reserve.name}`
+          : `Bollette registrate: il fondo non bastava, mancano ${formatCents(shortfall)}`
         : rest > 0 && reserve
           ? `Bollette registrate, ${formatCents(rest)} tornati su ${reserve.name}`
           : 'Bollette registrate';
     showToast(message, {
-      tone: shortfall > 0 ? 'error' : 'success',
+      tone: shortfall > 0 && !reserve ? 'error' : 'success',
       undo: async () => {
         for (const t of txs) await deleteTransaction(this.db!, t.id);
         await saveSettings(this.db!, before);

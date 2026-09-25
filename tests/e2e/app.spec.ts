@@ -209,10 +209,22 @@ test('bollette: il resto torna ai risparmi e la stima passa a due mesi dopo', as
   await expect(page.getByText(/Bollette registrate, .* tornati su Risparmi/)).toBeVisible();
   await expect(page.getByText('Sono arrivate le bollette di novembre?')).toHaveCount(0);
 
-  // Se esce più del fondo: avviso prima di confermare.
   await page.getByRole('button', { name: 'Impostazioni' }).click();
   await page.getByRole('button', { name: /Stipendio e piano/ }).click();
   await expect(page.getByLabel('Mese della prossima bolletta')).toHaveValue('2031-01');
+});
+
+test('bollette: se costano più del fondo, la differenza arriva dai risparmi', async ({ page }) => {
+  await restoreExample(page);
+  await page.clock.setFixedTime(new Date('2030-11-05T10:00:00+01:00'));
+  await page.reload();
+  await page.getByRole('button', { name: 'Sì, inserisci' }).click();
+  await page.locator('dialog[open]').getByLabel('Quanto è uscito?').fill('2.000');
+  await expect(page.getByText(/Tolgo .* da Risparmi/)).toBeVisible();
+  await page.getByRole('button', { name: 'Registra le bollette' }).click();
+  await expect(page.getByText(/Bollette registrate, .* presi da Risparmi/)).toBeVisible();
+  // Il fondo bollette arriva a zero, non in negativo.
+  await expect(page.getByRole('button', { name: /^Fondo bollette/ })).toContainText('0,00');
 });
 
 test('pagina del pocket con previsione e saluto', async ({ page }) => {

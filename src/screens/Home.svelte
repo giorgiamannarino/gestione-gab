@@ -259,7 +259,11 @@
     <p class="c-3 small">Esce da {billsPocket?.name ?? 'Fondo bollette'}, dove ci sono {privacy.hidden ? '•••' : formatCents(billFund)}.</p>
     {#if billSplit && billSplit.shortfall > 0}
       <InlineMessage tone="warning" title="Il fondo non basta">
-        Mancano {privacy.hidden ? '•••' : formatCents(billSplit.shortfall)}: il fondo bollette andrà in negativo. Potresti aumentare l'accantonamento mensile.
+        {#if app.savingsTarget}
+          Tolgo {privacy.hidden ? '•••' : formatCents(billSplit.shortfall)} da {app.savingsTarget.name}. Se capita spesso, conviene aumentare l'accantonamento mensile.
+        {:else}
+          Mancano {privacy.hidden ? '•••' : formatCents(billSplit.shortfall)}: il fondo bollette andrà in negativo.
+        {/if}
       </InlineMessage>
     {:else if billSplit && billSplit.rest > 0}
       <InlineMessage tone="success">
