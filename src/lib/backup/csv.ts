@@ -26,7 +26,7 @@ function amount(c: number): string {
 export function transactionsToCsv(data: AppData): string {
   const pocket = new Map(data.pockets.map((p) => [p.id, p.name]));
   const category = new Map(data.categories.map((c) => [c.id, c.name]));
-  const rows = [['Data', 'Tipo', 'Descrizione', 'Categoria', 'Pocket', 'Importo', 'Nota']];
+  const rows = [['Data', 'Tipo', 'Descrizione', 'Categoria', 'Pocket', 'Importo', 'Nota', 'Etichetta']];
   const sorted = [...data.transactions].sort((a, b) => (a.date === b.date ? a.createdAt - b.createdAt : a.date < b.date ? -1 : 1));
   for (const t of sorted) {
     for (const l of t.legs) {
@@ -38,6 +38,7 @@ export function transactionsToCsv(data: AppData): string {
         pocket.get(l.pocketId) ?? '',
         amount(l.amount),
         t.note ?? '',
+        t.tag ?? '',
       ]);
     }
   }

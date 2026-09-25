@@ -98,6 +98,13 @@
   </details>
 
   <details>
+    <summary>Oggi puoi spendere, scadenze, etichette</summary>
+    <p><strong>Oggi puoi spendere</strong>: saldo del pocket scelto (Impostazioni → Stipendio e piano) diviso i giorni che mancano al {st.salaryDay}. Verde se sei in linea, arancio se un po' veloce, rosso se troppo veloce rispetto ai giorni passati.</p>
+    <p><strong>Scadenze</strong> (Impostazioni → Scadenze): per bollo, assicurazione, università… l'app calcola quanto mettere da parte a ogni stipendio. Con "Aggiungi ai costi fissi" diventa uno spostamento della checklist del Piano. Il pagamento finale compare in Da confermare dai 10 giorni prima e scala l'importo dal pocket dove hai accantonato; se è annuale passa all'anno dopo e l'accantonamento diventa importo diviso 12.</p>
+    <p><strong>Etichette</strong>: in "Data e nota" puoi dare un'etichetta a un movimento (es. "Weekend Roma"). In Statistiche vedi ogni evento con il totale speso e i suoi movimenti.</p>
+  </details>
+
+  <details>
     <summary>Statistiche e riepilogo</summary>
     <p>Le statistiche contano solo le <strong>uscite</strong>. Giroconti, arrotondamenti e rettifiche non sono spese e sono esclusi. Il Riepilogo (tocca "Patrimonio totale" in Home) racconta il periodo a parole.</p>
   </details>

@@ -26,6 +26,8 @@ export interface EntryInput {
   description: string;
   categoryId?: Id;
   note?: string;
+  /** Etichetta di evento o viaggio. */
+  tag?: string;
   roundup?: boolean;
   source?: TxSource;
   autoKey?: string;
@@ -105,6 +107,7 @@ export function buildEntry(input: EntryInput, ctx: Ctx, existing?: Transaction):
     description: input.description.trim(),
     categoryId: input.categoryId,
     note: input.note?.trim() || undefined,
+    tag: input.tag?.trim().slice(0, 60) || undefined,
     roundup: input.kind === 'expense' ? input.roundup !== false : undefined,
     source: input.source ?? existing?.source ?? 'manual',
     autoKey: input.autoKey ?? existing?.autoKey,

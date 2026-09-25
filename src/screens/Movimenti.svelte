@@ -26,6 +26,7 @@
   let query = $state('');
   let pocketF = $state<Id | null>(null);
   let categoryF = $state<Id | null>(null);
+  let tagF = $state<string | null>(null);
   let filtersOpen = $state(false);
 
   // Filtri dall'indirizzo (es. /movimenti/pocket/ID) o pocket fisso.
@@ -38,6 +39,10 @@
     if (type === 'pocket' && id) {
       pocketF = id;
       all = false;
+    }
+    if (type === 'tag' && id) {
+      tagF = decodeURIComponent(id);
+      all = true; // un evento può stare a cavallo di due periodi
     }
   });
 
@@ -53,7 +58,8 @@
       .filter((t) => all || inPeriod(t.date, period))
       .filter((t) => !pocketF || t.legs.some((l) => l.pocketId === pocketF))
       .filter((t) => !categoryF || t.categoryId === categoryF)
-      .filter((t) => !q || t.description.toLowerCase().includes(q) || (t.note ?? '').toLowerCase().includes(q) || (category(t.categoryId)?.name ?? '').toLowerCase().includes(q))
+      .filter((t) => !tagF || t.tag?.trim().toLowerCase() === tagF.toLowerCase())
+      .filter((t) => !q || t.description.toLowerCase().includes(q) || (t.note ?? '').toLowerCase().includes(q) || (t.tag ?? '').toLowerCase().includes(q) || (category(t.categoryId)?.name ?? '').toLowerCase().includes(q))
       .sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : a.date < b.date ? 1 : -1));
   });
   const days = $derived.by(() => {
@@ -79,7 +85,7 @@
     const pos = t.legs.filter((l) => l.amount > 0).map((l) => pocketName(l.pocketId));
     if (t.kind === 'transfer') return `${neg.join(', ') || '—'} → ${pos.length > 2 ? `${pos.length} pocket` : pos.join(', ') || '—'}`;
     const c = category(t.categoryId);
-    return [...neg, ...pos].join(', ') + (c && !c.system ? ` · ${c.name}` : t.kind === 'adjustment' ? ' · Rettifica' : '');
+    return [...neg, ...pos].join(', ') + (c && !c.system ? ` · ${c.name}` : t.kind === 'adjustment' ? ' · Rettifica' : '') + (t.tag ? ` · ${t.tag}` : '');
   }
   function tileFor(t: Transaction) {
     if (t.kind === 'transfer') return { i: icon('arrow-right-left'), c: color('ardesia') };
@@ -88,10 +94,12 @@
     return { i: icon(c?.icon), c: color(c?.color) };
   }
   const editable = (t: Transaction) => t.kind === 'expense' || t.kind === 'income' || t.kind === 'transfer';
-  const activeFilters = $derived((pocketF && !fixedPocket ? 1 : 0) + (categoryF ? 1 : 0));
+  const activeFilters = $derived((pocketF && !fixedPocket ? 1 : 0) + (categoryF ? 1 : 0) + (tagF ? 1 : 0));
+  const tagTotal = $derived(tagF ? list.filter((t) => t.kind === 'expense').reduce((a, t) => a - t.legs.reduce((s, l) => s + l.amount, 0), 0) : 0);
   function clearFilters() {
     pocketF = fixedPocket ?? null;
     categoryF = null;
+    tagF = null;
     query = '';
     if (!fixedPocket && router.segments.length > 1) router.go('/movimenti');
   }
@@ -122,7 +130,11 @@
       <div class="active-filters">
         {#if pocketF && !fixedPocket}<button class="tag" onclick={() => { pocketF = null; router.go('/movimenti'); }}>{pocketName(pocketF)} <X size={14} /></button>{/if}
         {#if categoryF}<button class="tag" onclick={() => (categoryF = null)}>{category(categoryF)?.name} <X size={14} /></button>{/if}
+        {#if tagF}<button class="tag" onclick={() => { tagF = null; router.go('/movimenti'); }}>{tagF} <X size={14} /></button>{/if}
       </div>
+    {/if}
+    {#if tagF}
+      <p class="tag-total">Evento “{tagF}”: speso <strong><Amount cents={tagTotal} size="sm" /></strong> in {list.length} {list.length === 1 ? 'movimento' : 'movimenti'}.</p>
     {/if}
   </header>
 
@@ -273,6 +285,10 @@
     font-weight: var(--fw-heavy);
     display: grid;
     place-items: center;
+  }
+  .tag-total {
+    font-size: var(--fs-callout);
+    color: var(--text-2);
   }
   .active-filters {
     display: flex;

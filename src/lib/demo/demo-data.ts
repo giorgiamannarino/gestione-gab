@@ -108,6 +108,13 @@ export function demoData(todayDate: ISODate = todayFn()): AppData {
       }
     }
     for (const [off, pocket, amount, desc, cat] of pattern) spend(addDays(d0, off), pocket, amount + i * 70, desc, cat);
+    // Un piccolo viaggio con etichetta nel primo periodo.
+    if (i === 0) {
+      for (const [off, pocket, amount, desc, cat] of [[17, 'svago', 6400, 'Hotel', 'svago'], [17, 'coppia', 4200, 'Cena', 'bar'], [18, 'isp', 3500, 'Carburante', 'carburante']] as const) {
+        const date = addDays(d0, off);
+        if (date <= todayDate) add(date, 'expense', [[pocket, -amount]], desc, cat, { tag: 'Weekend al lago' });
+      }
+    }
   });
 
   // Periodo corrente: stipendio ancora da inserire, qualche spesa già fatta.
@@ -132,6 +139,13 @@ export function demoData(todayDate: ISODate = todayFn()): AppData {
     transactions: txs,
     recurring,
     valuations,
-    settings: { ...DEFAULT_SETTINGS, eveningReminder: true, salaryDay: day, salaryCategoryId: 'stipendio', nextBill: { month: nextMonth, amount: 19000 } },
+    settings: {
+      ...DEFAULT_SETTINGS,
+      dailyPocketId: 'svago',
+      deadlines: [
+        { id: 'demo-bollo', name: 'Bollo auto', amount: 18000, dueDate: addDays(todayDate, 120), pocketId: 'bg', annual: true, remind: true },
+        { id: 'demo-assic', name: 'Assicurazione auto', amount: 42000, dueDate: todayDate, pocketId: 'bg', annual: true, remind: true },
+      ],
+      eveningReminder: true, salaryDay: day, salaryCategoryId: 'stipendio', nextBill: { month: nextMonth, amount: 19000 } },
   };
 }

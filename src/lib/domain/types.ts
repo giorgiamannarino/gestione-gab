@@ -48,6 +48,8 @@ export interface Transaction {
   description: string;
   categoryId?: Id;
   note?: string;
+  /** Etichetta di evento o viaggio (es. "Weekend Roma"). */
+  tag?: string;
   /** Solo uscite da pocket Revolut: se false l'arrotondamento è disattivato. */
   roundup?: boolean;
   /** Per gli arrotondamenti: l'uscita che li ha generati. */
@@ -129,6 +131,26 @@ export interface Settings {
   weeklyBackupReminder: boolean;
   /** Promemoria serale per inserire i movimenti del giorno. */
   eveningReminder?: boolean;
+  /** Pocket per "Oggi puoi spendere" (default: quello chiamato "Personale"). "none" = spento. */
+  dailyPocketId?: Id | 'none';
+  /** Scadenze annuali o una tantum (bollo, assicurazione, università…). */
+  deadlines?: Deadline[];
+}
+
+export interface Deadline {
+  id: Id;
+  name: string;
+  amount: Cents;
+  /** Prossima scadenza. */
+  dueDate: ISODate;
+  /** Pocket dove si accantona e da cui si paga. */
+  pocketId: Id;
+  /** Si ripete ogni anno. */
+  annual: boolean;
+  /** Alla data compare in "Da confermare". */
+  remind: boolean;
+  /** Spostamento mensile creato con "Aggiungi ai costi fissi". */
+  recurringId?: Id;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

@@ -99,7 +99,7 @@ export function exampleBackup() {
       ],
       pockets, categories: [...cats, ...system], transactions, recurring,
       valuations: [{ id: 'v1', pocketId: 'fp', date: '2030-09-30', value: 312400 }, { id: 'v2', pocketId: 'fp', date: '2030-10-20', value: 318900 }],
-      settings: { salaryDay: 23, safetyMargin: 0, weeklyBackupReminder: true, salaryCategoryId: 'stipendio', nextBill: { month: '2030-11', amount: 19000 } },
+      settings: { dailyPocketId: 'fun', salaryDay: 23, safetyMargin: 0, weeklyBackupReminder: true, salaryCategoryId: 'stipendio', nextBill: { month: '2030-11', amount: 19000 } },
     },
   };
 }

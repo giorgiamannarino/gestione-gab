@@ -6,7 +6,8 @@
   import { balances, sumBalances } from '../lib/domain/balances';
   import { addDays, formatLongDate, monthName } from '../lib/domain/dates';
   import { formatCents } from '../lib/domain/money';
-  import { budgetSpent, debitKey, dueDebits, splitBill } from '../lib/domain/stats';
+  import { budgetSpent, debitKey, dueDebits, pocketPeriodStats, splitBill } from '../lib/domain/stats';
+  import { dailyAllowance } from '../lib/domain/planning';
   import { parseEuroInput } from '../lib/domain/money';
   import BottomSheet from '../ui/BottomSheet.svelte';
   import TextField from '../ui/TextField.svelte';
@@ -42,6 +43,14 @@
   const due = $derived(dueDebits(app.data.recurring, app.data.transactions, p, app.today));
   const salaryDone = $derived(!!app.salaryTx);
   const nextBill = $derived(app.data.settings.nextBill);
+
+  // Oggi puoi spendere: saldo del pocket diviso i giorni che mancano a fine periodo.
+  const daily = $derived.by(() => {
+    const pocket = app.dailyPocket;
+    if (!pocket) return null;
+    const st = pocketPeriodStats(pocket.id, app.data.transactions, p);
+    return { pocket, ...dailyAllowance(bal.get(pocket.id) ?? 0, st.taken, app.today, p) };
+  });
 
   const daysSinceBackup = $derived(app.backupInfo.lastAt ? Math.floor((Date.now() - app.backupInfo.lastAt) / 86_400_000) : null);
   const backupText = $derived(
@@ -120,6 +129,17 @@
   </button>
 
   <div class="stack">
+    {#if daily}
+      <button class="daily pace-{daily.pace}" onclick={() => open(daily.pocket)}>
+        <span class="daily-text">
+          <span class="daily-label">Oggi puoi spendere</span>
+          <Amount cents={daily.perDay} size="lg" />
+          <span class="c-3 small">su {daily.pocket.name} · {daily.daysLeft === 1 ? 'ultimo giorno' : `${daily.daysLeft} giorni al ${app.data.settings.salaryDay}`}</span>
+        </span>
+        <span class="pace">{daily.pace === 'ok' ? 'In linea' : daily.pace === 'fast' ? 'Un po’ veloce' : 'Troppo veloce'}</span>
+      </button>
+    {/if}
+
     {#if backupOld}
       <InlineMessage tone="warning" title={daysSinceBackup === null ? 'Non hai ancora un backup' : `Backup vecchio di ${daysSinceBackup} giorni`}>
         Salvane uno nuovo: basta un tocco.
@@ -166,8 +186,17 @@
       </InlineMessage>
     {/if}
 
-    {#if due.length}
+    {#if due.length || app.dueDeadlines.length}
       <Card title="Da confermare">
+        {#each app.dueDeadlines as dl (dl.id)}
+          <ListRow title={dl.name} subtitle="Scadenza · da {app.data.pockets.find((x) => x.id === dl.pocketId)?.name ?? ''} · {dl.dueDate > app.today ? 'scade' : 'scaduta'} il {Number(dl.dueDate.slice(8))} {monthName(Number(dl.dueDate.slice(5, 7)))}">
+            {#snippet trailing()}
+              <button class="confirm" onclick={() => app.confirmDeadline(dl)}>
+                <Check size={16} strokeWidth={2.25} /> {privacy.hidden ? 'Conferma' : formatCents(dl.amount)}
+              </button>
+            {/snippet}
+          </ListRow>
+        {/each}
         {#each due as d (d.recurring.id)}
           {@const pk = app.data.pockets.find((x) => x.id === d.recurring.fromPocketId)}
           {@const to = d.recurring.toPocketId ? app.data.pockets.find((x) => x.id === d.recurring.toPocketId) : undefined}
@@ -372,6 +401,48 @@
   }
   .backup-hint span {
     flex: 1;
+  }
+  /* Oggi puoi spendere: il colore segue il ritmo di spesa. */
+  .daily {
+    --c: var(--positive);
+    --f: var(--positive-fill);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    width: 100%;
+    padding: var(--sp-4);
+    border-radius: var(--r-lg);
+    text-align: left;
+    background: color-mix(in srgb, var(--f) var(--tint), var(--surface));
+    box-shadow: var(--shadow-1), var(--card-ring), inset 4px 0 0 var(--f);
+  }
+  .daily.pace-fast {
+    --c: var(--warning);
+    --f: var(--warning-fill);
+  }
+  .daily.pace-tooFast {
+    --c: var(--negative);
+    --f: var(--negative-fill);
+  }
+  .daily-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .daily-label {
+    font-size: var(--fs-callout);
+    font-weight: var(--fw-bold);
+    color: var(--text-2);
+  }
+  .pace {
+    flex: none;
+    padding: 4px 10px;
+    border-radius: var(--r-full);
+    font-size: var(--fs-caption);
+    font-weight: var(--fw-bold);
+    color: var(--c);
+    background: var(--surface);
   }
   .bill {
     display: grid;

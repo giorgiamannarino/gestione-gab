@@ -29,6 +29,7 @@
   let description = $state('');
   let date = $state(app.today);
   let note = $state('');
+  let tag = $state('');
   let roundup = $state(true);
   let details = $state(false);
   let saving = $state(false);
@@ -57,6 +58,17 @@
 
   const title = $derived(editing ? 'Modifica movimento' : 'Nuovo movimento');
 
+  // Etichette già usate, dalle più recenti, filtrate da quanto scritto.
+  const tagSuggestions = $derived.by(() => {
+    const q = tag.trim().toLowerCase();
+    const seen = new Map<string, string>();
+    for (const t of [...app.data.transactions].sort((a, b) => b.updatedAt - a.updatedAt)) {
+      const v = t.tag?.trim();
+      if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
+    }
+    return [...seen.values()].filter((v) => v.toLowerCase() !== q && (!q || v.toLowerCase().includes(q))).slice(0, 5);
+  });
+
   // Inizializza a ogni apertura.
   $effect(() => {
     void quickAdd.nonce;
@@ -81,8 +93,9 @@
       description = t.description;
       date = t.date;
       note = t.note ?? '';
+      tag = t.tag ?? '';
       roundup = t.roundup !== false;
-      details = !!t.note || t.date !== app.today;
+      details = !!t.note || !!t.tag || t.date !== app.today;
       return;
     }
     kind = (quickAdd.kind as Kind | null) ?? 'expense';
@@ -96,6 +109,7 @@
     description = '';
     date = app.today;
     note = '';
+    tag = '';
     roundup = true;
   }
 
@@ -149,6 +163,7 @@
           description: description.trim() || (kind === 'transfer' ? 'Giroconto' : (categories.find((c) => c.id === categoryId)?.name ?? (kind === 'income' ? 'Entrata' : 'Uscita'))),
           categoryId: kind === 'transfer' ? 'sys-transfer' : categoryId,
           note,
+          tag,
           roundup,
           source: editing?.source,
         },
@@ -259,6 +274,12 @@
           <input type="date" bind:value={date} max="2100-12-31" />
         </label>
         <TextField label="Nota (facoltativa)" bind:value={note} />
+        <TextField label="Etichetta evento o viaggio (facoltativa)" placeholder="Es. Weekend Roma" bind:value={tag} autocomplete="off" />
+        {#if tagSuggestions.length}
+          <div class="chips scroll" aria-label="Etichette usate">
+            {#each tagSuggestions as s (s)}<button class="suggestion" onclick={() => (tag = s)}>{s}</button>{/each}
+          </div>
+        {/if}
         {#if kind === 'expense' && payerIsRevolut}
           <label class="check"><input type="checkbox" bind:checked={roundup} /> Arrotondamento ai {savingsName}</label>
         {/if}

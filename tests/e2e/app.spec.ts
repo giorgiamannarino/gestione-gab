@@ -293,6 +293,60 @@ test('piano: con lo stipendio inserito a parte non propone "Metti da parte" né 
   await expect(page.getByRole('heading', { name: 'Avanzo del periodo precedente' })).toHaveCount(0);
 });
 
+test('oggi puoi spendere, scadenze annuali ed etichette', async ({ page }) => {
+  await restoreExample(page);
+  // Oggi puoi spendere (pocket Svago), 26 giorni al 22 novembre compreso.
+  const daily = page.getByRole('button', { name: /Oggi puoi spendere/ });
+  await expect(daily).toContainText('su Svago · 26 giorni al 23');
+
+  // Scadenza: bollo da 180 € il 10 marzo → 4 stipendi prima → 45 € a stipendio.
+  await page.getByRole('button', { name: 'Impostazioni' }).click();
+  await page.getByRole('button', { name: /Scadenze/ }).click();
+  await page.getByRole('button', { name: 'Aggiungi una scadenza' }).click();
+  const sheet = page.locator('dialog[open]');
+  await sheet.getByLabel('Nome').fill('Bollo auto');
+  await sheet.getByLabel('Importo').fill('180');
+  await sheet.getByLabel('Data della scadenza').fill('2031-03-10');
+  await expect(sheet.getByText(/45,00\s€ a ogni stipendio \(4 prima/)).toBeVisible();
+  await sheet.getByRole('button', { name: 'Salva', exact: true }).click();
+  await page.getByRole('button', { name: 'Aggiungi ai costi fissi' }).click();
+  await expect(page.getByText(/Nei costi fissi: 45,00\s€ al mese/)).toBeVisible();
+
+  // L'accantonamento mensile è nella checklist del Piano, non in Da confermare.
+  await page.getByRole('button', { name: 'Indietro' }).click();
+  await page.getByRole('button', { name: 'Torna alla Home' }).click();
+  await expect(page.getByRole('group').filter({ hasText: 'Bollo auto' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Piano', exact: true }).click();
+  await page.getByLabel('Stipendio').fill('2.345');
+  await page.getByRole('button', { name: 'Registra stipendio' }).click();
+  await expect(page.getByRole('checkbox', { name: /Accantonamento Bollo auto/ })).toBeVisible();
+
+  // Il pagamento finale compare in Da confermare dai 10 giorni prima (qui: scade il 7 novembre).
+  await page.getByRole('button', { name: 'Home' }).click();
+  await page.getByRole('button', { name: 'Impostazioni' }).click();
+  await page.getByRole('button', { name: /Scadenze/ }).click();
+  await page.getByRole('button', { name: /Bollo auto/ }).first().click();
+  await page.locator('dialog[open]').getByLabel('Data della scadenza').fill('2030-11-07');
+  await page.locator('dialog[open]').getByRole('button', { name: 'Salva', exact: true }).click();
+  await page.getByRole('button', { name: 'Indietro' }).click();
+  await page.getByRole('button', { name: 'Torna alla Home' }).click();
+  const row = page.getByRole('group').filter({ hasText: 'Bollo auto' });
+  await expect(row).toContainText('scade il 7 novembre');
+  await row.getByRole('button').click();
+  await expect(page.getByText(/Bollo auto pagato: 180,00/)).toBeVisible();
+
+  // Etichetta su una nuova spesa → Statistiche → movimenti dell'evento.
+  await page.getByRole('button', { name: 'Nuovo movimento' }).click();
+  await page.getByLabel('Descrizione').fill('Museo');
+  for (const k of ['1', '5']) await page.getByRole('group', { name: 'Tastierino numerico' }).getByRole('button', { name: k, exact: true }).click();
+  await page.getByRole('button', { name: 'Data e nota' }).click();
+  await page.getByLabel(/Etichetta evento o viaggio/).fill('Weekend Roma');
+  await page.getByRole('button', { name: 'Salva', exact: true }).click();
+  await page.getByRole('button', { name: 'Statistiche' }).click();
+  await page.getByRole('button', { name: /Weekend Roma/ }).click();
+  await expect(page.getByText(/Evento “Weekend Roma”: speso 15,00\s€ in 1 movimento/)).toBeVisible();
+});
+
 test('pagina del pocket con previsione e saluto', async ({ page }) => {
   await restoreExample(page);
   await expect(page.getByRole('heading', { name: 'Buongiorno' })).toBeVisible(); // ore 10

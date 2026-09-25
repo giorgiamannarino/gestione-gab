@@ -6,8 +6,9 @@ import { balances } from '../domain/balances';
 import { addDays, monthName, today, periodOf, shiftPeriod, type Period } from '../domain/dates';
 import { formatCents } from '../domain/money';
 import { buildAdjustment, buildEntry, type Ctx, type EntryInput } from '../domain/transactions';
-import { DEFAULT_SETTINGS, type AppData, type Id, type Recurring, type Settings, type Transaction } from '../domain/types';
+import { DEFAULT_SETTINGS, type AppData, type Deadline, type Id, type Recurring, type Settings, type Transaction } from '../domain/types';
 import { buildPlan } from '../domain/plan';
+import { deadlineMonthly, nextYear } from '../domain/planning';
 import { addMonths, billAvailable, billExpectedIn, billReferencePeriod, splitBill } from '../domain/stats';
 import {
   deleteItem, deleteTransaction, getBackupInfo, getMeta, loadAll, openAppDb, pendingChanges, putItem, putTransactions,
@@ -40,6 +41,89 @@ class AppStore {
 
   ctx(): Ctx {
     return { pockets: this.data.pockets, newId: () => crypto.randomUUID(), now: () => Date.now() };
+  }
+
+  // ── Scadenze annuali ──
+
+  get deadlines(): Deadline[] {
+    return [...(this.data.settings.deadlines ?? [])].sort((a, b) => (a.dueDate < b.dueDate ? -1 : 1));
+  }
+
+  deadlinePlan(d: Deadline) {
+    return deadlineMonthly(d, this.today, this.data.settings.salaryDay);
+  }
+
+  /**
+   * Pagamento finale delle scadenze, in "Da confermare" dai 10 giorni prima.
+   * (L'accantonamento mensile invece sta nella checklist del Piano.)
+   */
+  get dueDeadlines(): Deadline[] {
+    const from = addDays(this.today, 10);
+    return this.deadlines.filter((d) => d.remind && d.dueDate <= from && !this.txByKey(`deadline:${d.id}:${d.dueDate}`));
+  }
+
+  async saveDeadline(d: Deadline): Promise<void> {
+    const list = (this.data.settings.deadlines ?? []).filter((x) => x.id !== d.id);
+    await this.updateSettings({ deadlines: [...list, $state.snapshot(d) as Deadline] });
+  }
+
+  async deleteDeadline(id: Id): Promise<void> {
+    const d = this.deadlines.find((x) => x.id === id);
+    if (d?.recurringId) await deleteItem(this.db!, 'recurring', d.recurringId);
+    await this.updateSettings({ deadlines: (this.data.settings.deadlines ?? []).filter((x) => x.id !== id) });
+  }
+
+  /** Crea (o aggiorna) lo spostamento mensile che accantona per la scadenza. */
+  async deadlineToFixed(d: Deadline): Promise<void> {
+    const main = this.mainPocket;
+    if (!main) return;
+    const monthly = this.deadlinePlan(d).monthly;
+    const id = d.recurringId ?? `dl-${d.id}`;
+    const existing = this.data.recurring.find((r) => r.id === id);
+    await putItem(this.db!, 'recurring', {
+      ...(existing ? ($state.snapshot(existing) as Recurring) : {}),
+      id, name: `Accantonamento ${d.name}`, kind: 'allocation', amount: monthly, fromPocketId: main.id, toPocketId: d.pocketId,
+      active: true, order: existing?.order ?? 100 + this.data.recurring.length,
+    });
+    await this.saveDeadline({ ...d, recurringId: id });
+    showToast(`${d.name}: ${formatCents(monthly)} al mese nei costi fissi`, { tone: 'success' });
+  }
+
+  /** Pagamento della scadenza: spesa dal pocket di accantonamento; se annuale passa all'anno dopo. */
+  async confirmDeadline(d: Deadline): Promise<void> {
+    const db = this.db!;
+    const beforeSettings = $state.snapshot(this.data.settings) as Settings;
+    const rec = d.recurringId ? ($state.snapshot(this.data.recurring.find((r) => r.id === d.recurringId)) as Recurring | undefined) : undefined;
+    const tx = buildEntry({ kind: 'expense', date: this.today, amount: d.amount, fromPocketId: d.pocketId, description: d.name, categoryId: this.data.categories.find((c) => c.id === 'altro')?.id, source: 'recurring', autoKey: `deadline:${d.id}:${d.dueDate}` }, this.ctx());
+    await putTransactions(db, [tx]);
+    const list = (beforeSettings.deadlines ?? []).filter((x) => x.id !== d.id);
+    if (d.annual) {
+      const next = { ...d, dueDate: nextYear(d.dueDate) };
+      await saveSettings(db, { ...beforeSettings, deadlines: [...list, next] });
+      // Dopo il primo anno l'accantonamento diventa semplicemente importo / 12.
+      if (rec) await putItem(db, 'recurring', { ...rec, amount: Math.ceil(d.amount / 12 / 100) * 100 });
+    } else {
+      await saveSettings(db, { ...beforeSettings, deadlines: list });
+      if (rec) await putItem(db, 'recurring', { ...rec, active: false });
+    }
+    await this.reload();
+    showToast(`${d.name} pagato: ${formatCents(d.amount)}`, {
+      tone: 'success',
+      undo: async () => {
+        await deleteTransaction(db, tx.id);
+        await saveSettings(db, beforeSettings);
+        if (rec) await putItem(db, 'recurring', rec);
+        await this.reload();
+      },
+    });
+  }
+
+  /** Pocket di "Oggi puoi spendere": quello scelto, oppure quello chiamato "Personale". */
+  get dailyPocket() {
+    const choice = this.data.settings.dailyPocketId;
+    if (choice === 'none') return undefined;
+    const active = this.activePockets;
+    return (choice && active.find((p) => p.id === choice)) || active.find((p) => p.name.trim().toLowerCase() === 'personale');
   }
 
   /** "Non ancora" sul banner delle bollette: nascosto fino a questa data (esclusa). */

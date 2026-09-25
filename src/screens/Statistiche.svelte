@@ -9,6 +9,8 @@
   import { privacy } from '../lib/ui/privacy.svelte';
   import CalendarHeatmap from '../ui/charts/CalendarHeatmap.svelte';
   import { openQuickAdd } from '../lib/app/quickadd.svelte';
+  import { router } from '../lib/app/router.svelte';
+  import { tagSummary } from '../lib/domain/planning';
   import type { Id } from '../lib/domain/types';
   import { color, icon } from '../lib/ui/icons';
   import Amount from '../ui/Amount.svelte';
@@ -57,6 +59,10 @@
       value: totalSpending(txs, p, cats),
     })),
   );
+
+  // Etichette (tutto lo storico, dalla più recente)
+  const tags = $derived(tagSummary(txs));
+  const shortDay = (d: string) => `${Number(d.slice(8))} ${monthName(Number(d.slice(5, 7))).slice(0, 3)}`;
 
   // Calendario
   const daily = $derived(dailySpending(txs, period, cats));
@@ -167,6 +173,20 @@
       </div>
     </div>
   </Card>
+
+  {#if tags.length}
+    <Card title="Etichette: eventi e viaggi">
+      {#each tags as t (t.tag)}
+        <button class="tag-row" onclick={() => router.go(`/movimenti/tag/${encodeURIComponent(t.tag)}`)}>
+          <span class="dr-text">
+            <span class="dr-title">{t.tag}</span>
+            <span class="c-3 tiny">{t.count} {t.count === 1 ? 'movimento' : 'movimenti'} · {t.first === t.last ? shortDay(t.first) : `${shortDay(t.first)} – ${shortDay(t.last)}`}</span>
+          </span>
+          <Amount cents={t.spent} size="sm" />
+        </button>
+      {/each}
+    </Card>
+  {/if}
 
   <Card title="Spese negli ultimi sei periodi">
     <ColumnChart title="Spese totali negli ultimi sei periodi" data={history} />
@@ -306,6 +326,18 @@
   }
   .tiny {
     font-size: var(--fs-caption);
+  }
+  .tag-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--sp-2);
+    width: 100%;
+    min-height: 52px;
+    text-align: left;
+  }
+  .tag-row + .tag-row {
+    border-top: 1px solid var(--hairline);
   }
   .form {
     display: grid;
