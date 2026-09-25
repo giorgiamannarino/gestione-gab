@@ -8,7 +8,7 @@ import { formatCents } from '../domain/money';
 import { buildAdjustment, buildEntry, type Ctx, type EntryInput } from '../domain/transactions';
 import { DEFAULT_SETTINGS, type AppData, type Id, type Recurring, type Settings, type Transaction } from '../domain/types';
 import { buildPlan } from '../domain/plan';
-import { addMonths, billExpectedIn, splitBill } from '../domain/stats';
+import { addMonths, billAvailable, billExpectedIn, billReferencePeriod, splitBill } from '../domain/stats';
 import {
   deleteItem, deleteTransaction, getBackupInfo, getMeta, loadAll, openAppDb, pendingChanges, putItem, putTransactions,
   replaceAll, restoreTransactions, saveEntry, saveSettings, setMeta, type BackupInfo, type DB,
@@ -61,11 +61,26 @@ class AppStore {
     return { month: nb.month, estimate: nb.amount, lastDay };
   }
 
-  /** Bollette attese nel periodo in corso (per il Piano), anche se il banner è nascosto. */
-  get billThisPeriod(): { estimate: number } | null {
+  /**
+   * Soldi del fondo che spettano alla prossima bolletta: quanto c'era a fine del suo periodo
+   * di riferimento. Gli accantonamenti dei periodi dopo sono per le bollette successive.
+   */
+  get billFund(): { available: number; now: number; late: boolean } | null {
     const nb = this.data.settings.nextBill;
-    if (!nb || this.txByKey(`bill:${nb.month}`) || !billExpectedIn(nb, this.period)) return null;
-    return { estimate: nb.amount };
+    const bills = this.data.pockets.find((p) => p.role === 'bills' && !p.archived);
+    if (!nb || !bills) return null;
+    const ref = billReferencePeriod(nb.month, this.data.settings.salaryDay);
+    const now = this.balances.get(bills.id) ?? 0;
+    const atRefEnd = balances([bills], this.data.transactions, ref.end).get(bills.id) ?? 0;
+    return { available: billAvailable(now, atRefEnd), now, late: this.period.key > ref.key };
+  }
+
+  /** Bollette attese nel periodo in corso (per il Piano), anche se il banner è nascosto. */
+  get billThisPeriod(): { estimate: number; available: number; late: boolean } | null {
+    const nb = this.data.settings.nextBill;
+    const fund = this.billFund;
+    if (!nb || !fund || this.txByKey(`bill:${nb.month}`) || !billExpectedIn(nb, this.period)) return null;
+    return { estimate: nb.amount, available: fund.available, late: fund.late };
   }
 
   async snoozeBill(): Promise<void> {
@@ -92,15 +107,17 @@ class AppStore {
   }
 
   /**
-   * Bolletta pagata dal Fondo bollette: se costa meno del fondo, il resto va sui risparmi;
-   * se costa di più il fondo va in negativo e lo si segnala. Poi la stima passa a due mesi dopo.
+   * Bolletta pagata dal Fondo bollette, con i soldi messi da parte per lei (vedi billFund):
+   * se costa meno il resto va sui risparmi, se costa di più la differenza arriva dai risparmi.
+   * Poi la stima passa a due mesi dopo il mese previsto.
    */
   async registerBill(amount: number, date: string): Promise<{ rest: number; shortfall: number }> {
     const due = this.billDue;
     const bills = this.data.pockets.find((p) => p.role === 'bills' && !p.archived);
     if (!due || !bills || amount <= 0) return { rest: 0, shortfall: 0 };
     const reserve = this.savingsTarget;
-    const { rest, shortfall } = splitBill(this.balances.get(bills.id) ?? 0, amount);
+    // Solo i soldi messi da parte per queste bollette: l'accantonamento dei periodi dopo resta nel fondo.
+    const { rest, shortfall } = splitBill(this.billFund?.available ?? 0, amount);
     const ctx = this.ctx();
     const category = this.data.categories.find((c) => c.id === 'bollette' && !c.archived)?.id;
     const txs: Transaction[] = [];

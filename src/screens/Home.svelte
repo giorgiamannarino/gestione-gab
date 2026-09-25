@@ -61,7 +61,9 @@
 
   // ── Bollette ──
   const billsPocket = $derived(app.data.pockets.find((x) => x.role === 'bills' && !x.archived));
-  const billFund = $derived(billsPocket ? (bal.get(billsPocket.id) ?? 0) : 0);
+  // Solo i soldi messi da parte per queste bollette (non gli accantonamenti dei mesi dopo).
+  const billFund = $derived(app.billFund?.available ?? 0);
+  const billFundNow = $derived(app.billFund?.now ?? 0);
   let billOpen = $state(false);
   let billAmount = $state('');
   let billDate = $state(app.today);
@@ -139,7 +141,7 @@
         </InlineMessage>
       {:else}
         <InlineMessage tone="info" title="Sono arrivate le bollette di {monthName(Number(due.month.slice(5, 7)))}?">
-          Stima: {privacy.hidden ? '•••' : formatCents(due.estimate)}. Nel fondo ci sono {privacy.hidden ? '•••' : formatCents(billFund)}.
+          Stima: {privacy.hidden ? '•••' : formatCents(due.estimate)}. Messi da parte per queste bollette: {privacy.hidden ? '•••' : formatCents(billFund)}.
           {#snippet action()}
             <div class="msg-actions">
               <Button variant="secondary" onclick={openBill}>Sì, inserisci</Button>
@@ -268,7 +270,9 @@
   <div class="bill">
     <TextField label="Quanto è uscito?" inputmode="decimal" bind:value={billAmount} error={billAmount.trim() && billCents === null ? 'Scrivi un importo valido, es. 187,40.' : ''} />
     <TextField label="Data" type="date" bind:value={billDate} />
-    <p class="c-3 small">Esce da {billsPocket?.name ?? 'Fondo bollette'}, dove ci sono {privacy.hidden ? '•••' : formatCents(billFund)}.</p>
+    <p class="c-3 small">
+      Esce da {billsPocket?.name ?? 'Fondo bollette'}. Per queste bollette erano stati messi da parte {privacy.hidden ? '•••' : formatCents(billFund)}{billFundNow > billFund ? `; gli altri ${privacy.hidden ? '•••' : formatCents(billFundNow - billFund)} nel fondo sono per le bollette successive e restano lì` : ''}.
+    </p>
     {#if billSplit && billSplit.shortfall > 0}
       <InlineMessage tone="warning" title="Il fondo non basta">
         {#if app.savingsTarget}

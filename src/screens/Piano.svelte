@@ -35,10 +35,12 @@
   const billInfo = $derived.by(() => {
     const bill = app.billThisPeriod;
     if (!bill || !billsPocket) return null;
-    const fund = app.balances.get(billsPocket.id) ?? 0;
+    // Solo i soldi messi da parte per queste bollette. Se sono in ritardo (periodo successivo),
+    // l'accantonamento di questo mese è per le bollette seguenti e non si conta.
+    const fund = bill.available;
     const line = plan.others.find((l) => l.toPocketId === billsPocket.id);
-    const allocation = line && !app.planStatus(line) ? line.amount : 0; // se già spostato è già nel fondo
-    return { estimate: bill.estimate, fund, allocation, shortfall: billShortfall(fund, allocation, bill.estimate) };
+    const allocation = !bill.late && line && !app.planStatus(line) ? line.amount : 0; // se già spostato è già nel fondo
+    return { estimate: bill.estimate, fund, allocation, late: bill.late, shortfall: billShortfall(fund, allocation, bill.estimate) };
   });
   const proposal = $derived(Math.max(0, plan.saveable - (billInfo?.shortfall ?? 0)));
   const saveAmount = $derived(parseEuroInput(savingInput) ?? proposal);
@@ -125,7 +127,7 @@
     {/if}
 
     {#if plan.others.length}
-      <Card title="Altri spostamenti">
+      <Card title="Da spostare su Risparmi">
         {#each plan.others as l (l.recurringId)}
           {@render check(l)}
         {/each}
@@ -150,7 +152,9 @@
     {#if billInfo}
       <Card title="Bollette attese in questo periodo">
         <p class="c-2 small">
-          Stima {eur(billInfo.estimate)}. Nel fondo ci sono {eur(billInfo.fund)}{billInfo.allocation ? ` e con l'accantonamento del mese si arriva a ${eur(billInfo.fund + billInfo.allocation)}` : ''}.
+          {#if billInfo.late}Le bollette del periodo scorso non sono ancora uscite.{/if}
+          Stima {eur(billInfo.estimate)}. Messi da parte per queste bollette: {eur(billInfo.fund)}{billInfo.allocation ? `, e con l'accantonamento del mese si arriva a ${eur(billInfo.fund + billInfo.allocation)}` : ''}.
+          {#if billInfo.late}L'accantonamento di questo mese resta per le bollette successive.{/if}
           {#if billInfo.shortfall > 0}
             Mancheranno circa <strong>{eur(billInfo.shortfall)}</strong>, che verranno presi da {app.savingsTarget?.name ?? 'Risparmi'}: li ho già tolti dalla proposta di risparmio qui sotto.
           {:else}

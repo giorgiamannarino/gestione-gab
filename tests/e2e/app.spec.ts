@@ -259,6 +259,21 @@ test('bollette: "Non ancora" per 5 giorni, ultimo giorno si chiede conferma e si
   await page.getByLabel('Stipendio').fill('2.345');
   await page.getByRole('button', { name: 'Registra stipendio' }).click();
   await expect(page.getByRole('heading', { name: 'Bollette attese in questo periodo' })).toBeVisible();
+  await expect(page.getByText(/L'accantonamento di questo mese resta per le bollette successive/)).toBeVisible();
+
+  // Accantonamento del mese nuovo (+100 nel fondo): è per le bollette successive.
+  await page.getByRole('checkbox', { name: /Fondo bollette/ }).click();
+  await expect(page.getByRole('checkbox', { name: /Fondo bollette/ })).toHaveAttribute('aria-checked', 'true');
+
+  // Escono le bollette di novembre (190 €): a loro spettano i 320 € messi da parte fino al 22 novembre.
+  await page.getByRole('button', { name: 'Home' }).click();
+  await page.getByRole('button', { name: 'Sì, inserisci' }).click();
+  await page.locator('dialog[open]').getByLabel('Quanto è uscito?').fill('190');
+  await expect(page.getByText(/sono per le bollette successive e restano lì/)).toBeVisible();
+  await page.getByRole('button', { name: 'Registra le bollette' }).click();
+  await expect(page.getByText(/Bollette registrate, 130,00\s€ tornati su Risparmi/)).toBeVisible();
+  // Nel fondo restano i 100 € del mese nuovo.
+  await expect(page.getByRole('button', { name: /^Fondo bollette/ })).toContainText('100,00');
 });
 
 test('pagina del pocket con previsione e saluto', async ({ page }) => {

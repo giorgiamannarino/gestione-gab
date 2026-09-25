@@ -1,6 +1,6 @@
 /** Statistiche di spesa per periodo. Rettifiche, giroconti e arrotondamenti non sono spese. */
 import type { Cents } from './money';
-import { inPeriod, type Period } from './dates';
+import { inPeriod, periodOf, type Period } from './dates';
 import type { Category, Id, ISODate, Recurring, Transaction } from './types';
 
 function isSpending(tx: Transaction, excluded: Set<Id>): boolean {
@@ -80,6 +80,20 @@ export function splitBill(fund: Cents, bill: Cents): { rest: Cents; shortfall: C
 export function billExpectedIn(bill: { month: string; period?: string }, p: Period): boolean {
   if (bill.period) return p.key >= bill.period;
   return bill.month <= p.end.slice(0, 7);
+}
+
+/**
+ * Periodo di riferimento di una bolletta del mese `month`: quello in cui era attesa.
+ * I soldi entrati nel fondo fino alla sua fine sono per questa bolletta; quelli dopo
+ * (accantonamenti dei periodi successivi) sono per le bollette seguenti.
+ */
+export function billReferencePeriod(month: string, salaryDay: number): Period {
+  return periodOf(`${month}-01`, salaryDay);
+}
+
+/** Soldi del fondo che spettano alla bolletta: al massimo quanto c'era a fine periodo di riferimento. */
+export function billAvailable(fundNow: Cents, fundAtReferenceEnd: Cents): Cents {
+  return Math.max(0, Math.min(fundNow, fundAtReferenceEnd));
 }
 
 /** Quanto mancherà nel fondo per la bolletta attesa, dopo l'accantonamento del periodo. */

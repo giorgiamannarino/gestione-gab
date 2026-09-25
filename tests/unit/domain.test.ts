@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { balances, balanceSeries, sumBalances } from '../../src/lib/domain/balances';
 import { periodLabel, periodOf, shiftPeriod } from '../../src/lib/domain/dates';
 import { buildPlan, forecastAllocation, recurringAmount } from '../../src/lib/domain/plan';
-import { addMonths, billExpectedIn, billShortfall, budgetSpent, dailySpending, dueDebits, pocketPeriodStats, spendingByCategory, splitBill, totalSpending } from '../../src/lib/domain/stats';
+import { addMonths, billAvailable, billExpectedIn, billReferencePeriod, billShortfall, budgetSpent, dailySpending, dueDebits, pocketPeriodStats, spendingByCategory, splitBill, totalSpending } from '../../src/lib/domain/stats';
 import { buildAdjustment, buildEntry, roundupPreview, roundupTxFor } from '../../src/lib/domain/transactions';
 import { ctx, pockets, recurring, tx } from './fixtures';
 
@@ -193,6 +193,15 @@ describe('bollette', () => {
     expect(billExpectedIn({ month: '2030-12' }, ott)).toBe(false);
     expect(billExpectedIn({ month: '2030-10', period: '2030-11' }, ott)).toBe(false); // rimandata al periodo dopo
     expect(billExpectedIn({ month: '2030-10', period: '2030-10' }, ott)).toBe(true);
+  });
+
+  it('i soldi per una bolletta sono quelli messi da parte fino al suo periodo', () => {
+    expect(billReferencePeriod('2030-11', 23)).toMatchObject({ start: '2030-10-23', end: '2030-11-22' });
+    // Uscita in ritardo: nel fondo ora ci sono 420 (320 + 100 del mese nuovo) ma alla bolletta ne spettano 320.
+    expect(billAvailable(42000, 32000)).toBe(32000);
+    // Uscita in tempo: tutto il fondo attuale.
+    expect(billAvailable(32000, 32000)).toBe(32000);
+    expect(billAvailable(-100, 5000)).toBe(0);
   });
 
   it('quanto mancherà nel fondo, contando l\'accantonamento', () => {
