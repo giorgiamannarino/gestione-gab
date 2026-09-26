@@ -50,8 +50,8 @@ export default defineConfig(({ mode }) => ({
       injectRegister: false,
       includeAssets: ['icons/*.png', 'icons/icon.svg'],
       manifest: {
-        name: 'Conti',
-        short_name: 'Conti',
+        name: 'MO KASH',
+        short_name: 'MO KASH',
         description: 'Gestione delle finanze personali, tutta sul telefono.',
         lang: 'it',
         start_url: '.',

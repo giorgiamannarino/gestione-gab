@@ -53,7 +53,7 @@ describe('backup e ripristino', () => {
     const a = await freshDb();
     await replaceAll(a, sample());
     const blob = await makeBackup(a, '0.1.0', { now: new Date('2030-10-23T10:00:00Z') });
-    expect(blob.name).toBe('conti-backup-2030-10-23.json');
+    expect(blob.name).toBe('mokash-backup-2030-10-23.json');
 
     const b = await freshDb();
     await replaceAll(b, { ...sample(), transactions: [], pockets: pockets.slice(0, 2) });

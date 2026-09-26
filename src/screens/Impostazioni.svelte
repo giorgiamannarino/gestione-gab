@@ -222,7 +222,7 @@
   async function testNotify() {
     if (notifyStatus !== 'granted') notifyStatus = await requestNotify();
     if (notifyStatus !== 'granted') return showToast('Notifiche non autorizzate', { tone: 'error' });
-    const ok = await notify('Conti', REMINDER_TEXT);
+    const ok = await notify('MO KASH', REMINDER_TEXT);
     showToast(ok ? 'Notifica inviata' : 'Non riesco a mostrare la notifica', { tone: ok ? 'success' : 'error' });
   }
 
@@ -301,7 +301,7 @@
         <Button variant="secondary" block onclick={async () => { await app.loadDemo(); router.go('/'); showToast('Dati di esempio caricati', { tone: 'success' }); }}>Ricarica i dati di esempio</Button>
       </Card>
     {/if}
-    <p class="version">Conti {APP_VERSION} · i dati restano solo su questo telefono</p>
+    <p class="version">MO KASH {APP_VERSION} · i dati restano solo su questo telefono</p>
 
   {:else if section === 'backup'}
     <Card>
@@ -372,7 +372,7 @@
       <p class="strong">Notifiche</p>
       <p class="c-3 small bottom">
         {notifyStatus === 'granted' ? 'Attive su questo telefono.'
-          : notifyStatus === 'denied' ? 'Bloccate: riattivale in Impostazioni iPhone → Notifiche → Conti.'
+          : notifyStatus === 'denied' ? 'Bloccate: riattivale in Impostazioni iPhone → Notifiche → MO KASH.'
           : notifyStatus === 'unsupported' ? "Non disponibili qui. Su iPhone funzionano solo con l'app aggiunta alla schermata Home (iOS 16.4 o successivo)."
           : 'Non ancora autorizzate.'}
       </p>

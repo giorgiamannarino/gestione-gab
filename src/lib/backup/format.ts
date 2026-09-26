@@ -23,7 +23,7 @@ export function createBackup(data: AppData, now: Date, appVersion: string): Back
 }
 
 export function backupFileName(now: Date): string {
-  return `conti-backup-${toISODate(now)}.json`;
+  return `mokash-backup-${toISODate(now)}.json`;
 }
 
 /** Migrazioni del formato: BACKUP_MIGRATIONS[v] porta i dati dalla versione v alla v+1. */

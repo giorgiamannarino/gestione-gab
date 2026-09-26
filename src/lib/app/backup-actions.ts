@@ -22,6 +22,6 @@ export async function saveBackup(password?: string): Promise<boolean> {
 }
 
 export function exportCsv(): void {
-  downloadText(`conti-movimenti-${toISODate(new Date())}.csv`, transactionsToCsv(app.data), 'text/csv');
+  downloadText(`mokash-movimenti-${toISODate(new Date())}.csv`, transactionsToCsv(app.data), 'text/csv');
   showToast('CSV esportato', { tone: 'success' });
 }

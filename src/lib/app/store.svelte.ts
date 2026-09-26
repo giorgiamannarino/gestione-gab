@@ -325,7 +325,7 @@ class AppStore {
   async checkEveningReminder(): Promise<void> {
     if (!this.db || !this.eveningReminderDue) return;
     if ((await getMeta(this.db, 'lastReminder', '')) === this.today) return;
-    if (await notify('Conti', REMINDER_TEXT)) await setMeta(this.db, 'lastReminder', this.today);
+    if (await notify('MO KASH', REMINDER_TEXT)) await setMeta(this.db, 'lastReminder', this.today);
   }
 
   async init(): Promise<void> {
@@ -480,6 +480,17 @@ class AppStore {
     if (this.planIgnored(line)) return { planTx, manual: [], manualAmount: 0, ignored: manual.length > 0, found: manual };
     const manualAmount = manual.reduce((a, t) => a + (t.legs.find((l) => l.pocketId === line.toPocketId && l.amount > 0)?.amount ?? 0), 0);
     return { planTx, manual, manualAmount, ignored: false, found: manual };
+  }
+
+  /** Saldi dei pocket subito prima dello stipendio del periodo (o adesso, se non è ancora arrivato). */
+  get balancesBeforeSalary() {
+    const salaryTx = this.salaryTx;
+    return salaryTx ? this.balancesBeforeTx(salaryTx) : this.balances;
+  }
+
+  /** La scadenza a cui si riferisce una voce del Piano ("dl-…"). */
+  deadlineOfLine(recurringId: Id): Deadline | undefined {
+    return this.deadlines.find((d) => this.deadlineLineId(d) === recurringId);
   }
 
   private planIgnoreKey(line: Pick<PlanLine, 'recurringId'>) {

@@ -18,7 +18,7 @@ async function restoreExample(page: Page) {
 
 test('onboarding da zero, allineamento del saldo', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Benvenuto in Conti' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Benvenuto in MO KASH' })).toBeVisible();
   await page.getByRole('button', { name: 'Parti da zero' }).click();
   await page.getByRole('button', { name: 'Continua' }).click();
   await page.getByLabel('Saldo reale di Conto principale').fill('1.250,40');
@@ -483,7 +483,7 @@ test('scadenze su Auto: lo spostamento verso Auto diventa la loro somma, non bud
   await page.getByLabel('Stipendio').fill('2.345');
   await page.getByRole('button', { name: 'Registra stipendio' }).click();
 
-  await expect(page.getByText(/La stima di risparmio è un consiglio: puoi accettarla in fondo alla pagina/)).toBeVisible();
+  await expect(page.getByText(/La stima di risparmio è un consiglio: puoi accettarla in fondo alla pagina oppure scegliere tu quanto mettere da parte, modificando la cifra/)).toBeVisible();
   await expect(page.getByText(/Spuntando una voce non paghi nulla: registri solo la ripartizione/)).toBeVisible();
 
   // Una sola riga verso Auto, niente righe separate in Scadenze.
@@ -515,8 +515,25 @@ test('scadenze su Auto: lo spostamento verso Auto diventa la loro somma, non bud
   await expect(auto).toContainText(/già spostati 150,00\s€ con un giroconto: spunta per spostare i 140,00\s€ che mancano/);
   await expect(recap).toContainText(/Messi da parte 0,00\s€/);
 
-  // La spunta sposta solo i 140 € che mancano; le quote vanno alle scadenze.
-  await auto.click();
+  // Pressione prolungata: il dettaglio spiega importo, scadenze, saldo e giroconti.
+  // Eventi mandati alla voce: col mouse vero il punto può finire sotto l'avviso "Giroconto salvato".
+  await auto.dispatchEvent('pointerdown', { button: 0, pointerType: 'touch', isPrimary: true });
+  await page.waitForTimeout(700);
+  await auto.dispatchEvent('pointerup', { button: 0, pointerType: 'touch', isPrimary: true });
+  await auto.dispatchEvent('click');
+  const detail = page.locator('dialog[open]');
+  await expect(detail).toContainText(/Spostati finora 150,00\s€ con un giroconto dai Movimenti: ne mancano 140,00\s€/);
+  await expect(detail).toContainText(/Si sposta il più alto tra la regola del pocket/);
+  await expect(detail).toContainText(/Gomme/);
+  await expect(detail).toContainText(/Saldo di Auto/);
+  await expect(detail).toContainText(/Prima dello stipendio/);
+  await expect(auto).toHaveAttribute('aria-checked', 'false'); // la pressione prolungata non spunta
+
+  // Dal dettaglio si spunta: sposta solo i 140 € che mancano; le quote vanno alle scadenze.
+  await detail.getByRole('button', { name: /Spunta: sposta i 140,00\s€ che mancano/ }).click();
+  await expect(detail).toContainText(/Spuntata: 290,00\s€ risultano spostati \(150,00\s€ con un giroconto dai Movimenti e 140,00\s€ con la spunta\)/);
+  await page.keyboard.press('Escape');
+  await expect(detail).toHaveCount(0);
   await expect(auto).toHaveAttribute('aria-checked', 'true');
   await expect(auto).toContainText(/150,00\s€ con un giroconto \+ 140,00\s€ con la spunta/);
   await expect(recap).toContainText(/Messi da parte 200,00\s€/);

@@ -156,7 +156,7 @@
   {#if step === 'welcome'}
     <div class="hero">
       <span class="logo" aria-hidden="true"><Wallet size={36} strokeWidth={1.75} /></span>
-      <h1 class="t-title-1">Benvenuto in Conti</h1>
+      <h1 class="t-title-1">Benvenuto in MO KASH</h1>
       <p class="c-2">I tuoi soldi, pocket per pocket. Tutto resta su questo telefono: niente account, niente server.</p>
     </div>
     <div class="actions">
@@ -242,7 +242,7 @@
       <ol class="steps">
         <li><Share size={20} /> In Safari tocca <strong>Condividi</strong></li>
         <li><SquarePlus size={20} /> Scegli <strong>Aggiungi alla schermata Home</strong></li>
-        <li><Check size={20} /> Apri <strong>Conti</strong> dalla nuova icona</li>
+        <li><Check size={20} /> Apri <strong>MO KASH</strong> dalla nuova icona</li>
       </ol>
     {/if}
     <Button size="lg" block onclick={() => (step = 'backup')}>Continua</Button>

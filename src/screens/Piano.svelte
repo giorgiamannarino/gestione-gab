@@ -15,6 +15,8 @@
   import IconTile from '../ui/IconTile.svelte';
   import InlineMessage from '../ui/InlineMessage.svelte';
   import TextField from '../ui/TextField.svelte';
+  import { longpress } from '../lib/ui/longpress';
+  import PlanLineSheet from './parts/PlanLineSheet.svelte';
 
   const key = $derived(app.period.key);
   const salaryTx = $derived(app.salaryTx);
@@ -58,6 +60,9 @@
   const savedTx = $derived(app.txByKey(`plan:save:${key}`));
   const leftoverTx = $derived(app.txByKey(`plan:leftover:${key}`));
   const checklistDone = $derived([...plan.revolut, ...plan.others, ...plan.deadlines].every((l) => done(l.recurringId)));
+  // Voce aperta con la pressione prolungata: si tiene l'id, così dopo una spunta si vede la voce aggiornata.
+  let detailId = $state<Id | null>(null);
+  const detail = $derived(detailId ? ([...plan.auto, ...plan.revolut, ...plan.others, ...plan.deadlines].find((l) => l.recurringId === detailId) ?? null) : null);
   const eur = (c: number) => (privacy.hidden ? '•••' : formatCents(c));
 
   async function registerSalary() {
@@ -112,9 +117,9 @@
     </section>
     <p class="c-3 small note">
       {#if app.savingsTarget && salaryFromPlan}
-        La stima di risparmio è un consiglio: puoi accettarla in fondo alla pagina oppure scegliere tu quando mettere da parte, facendo a mano un giroconto dai Movimenti.
+        La stima di risparmio è un consiglio: puoi accettarla in fondo alla pagina oppure scegliere tu quanto mettere da parte, modificando la cifra.
       {:else}
-        La stima di risparmio è un consiglio: scegli tu quando mettere da parte, facendo a mano un giroconto dai Movimenti.
+        La stima di risparmio è un consiglio: scegli tu quanto mettere da parte, facendo a mano un giroconto dai Movimenti.
       {/if}
     </p>
 
@@ -122,7 +127,7 @@
       <Card title="Già fatto in automatico">
         {#each plan.auto as l (l.recurringId)}
           {@const to = pocket(l.toPocketId)}
-          <div class="line">
+          <div class="line check" use:longpress={() => (detailId = l.recurringId)}>
             <span class="tick on" aria-hidden="true"><Check size={14} strokeWidth={3} /></span>
             <span class="lname">{l.name}<span class="c-3 small"> · {pocket(l.fromPocketId)?.name} → {to?.name}</span></span>
             <Amount cents={l.amount} />
@@ -134,7 +139,7 @@
     {#if plan.revolut.length || plan.others.length || plan.deadlines.length}
       <p class="c-2 small note">
         Indipendentemente da quanto decidi di mettere da parte, segna qui sotto tutti gli spostamenti verso i tuoi pocket.
-        Spuntando una voce non paghi nulla: registri solo la ripartizione.
+        Spuntando una voce non paghi nulla: registri solo la ripartizione. Tieni premuta una voce per vedere come è calcolata, cosa c'era già sul pocket e cosa hai già spostato.
       </p>
     {/if}
 
@@ -272,13 +277,15 @@
   {/if}
 </div>
 
+<PlanLineSheet line={detail} onclose={() => (detailId = null)} />
+
 {#snippet check(l: PlanLine)}
   {@const st = status(l)}
   {@const full = l.mode === 'topUp' && l.amount === 0}
   {@const ok = st === 'auto' || st === 'manual' || full}
   {@const moved = st === 'partial' || (st === 'auto' && l.covers) ? app.planMoved(l).manualAmount : 0}
   {@const to = pocket(l.toPocketId)}
-  <button class="line check" class:ok disabled={full} onclick={() => app.togglePlanTransfer(l, app.today)} role="checkbox" aria-checked={ok}>
+  <button class="line check" class:ok aria-disabled={full} use:longpress={() => (detailId = l.recurringId)} onclick={() => !full && app.togglePlanTransfer(l, app.today)} role="checkbox" aria-checked={ok}>
     <span class="tick" class:on={ok} aria-hidden="true">{#if ok}<Check size={14} strokeWidth={3} />{/if}</span>
     {#if to}<IconTile icon={icon(to.icon)} color={color(to.color)} size="sm" />{/if}
     <span class="lname">
@@ -401,7 +408,13 @@
     text-decoration: none;
     font-variant-numeric: tabular-nums;
   }
-  .check:disabled {
+  .check {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+  .check[aria-disabled='true'] {
     cursor: default;
   }
   .tick {

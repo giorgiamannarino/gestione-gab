@@ -1,4 +1,4 @@
-# Conti
+# MO KASH
 
 Un'app per gestire le finanze personali dal telefono: pocket, spese, piano di inizio mese, statistiche e backup.
 
@@ -29,7 +29,7 @@ Si fa una volta sola.
 1. Apri l'indirizzo dell'app.
 2. Tocca **Condividi** (il quadrato con la freccia in su).
 3. Scegli **Aggiungi alla schermata Home**, poi **Aggiungi**.
-4. Da ora in poi apri **Conti** dalla sua icona.
+4. Da ora in poi apri **MO KASH** dalla sua icona.
 
 **Android** (con Chrome): apri l'indirizzo, tocca il menu **⋮** e scegli **Installa app**.
 
