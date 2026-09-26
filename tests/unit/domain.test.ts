@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { balances, balanceSeries, sumBalances } from '../../src/lib/domain/balances';
 import { periodLabel, periodOf, shiftPeriod } from '../../src/lib/domain/dates';
-import { buildPlan, forecastAllocation, recurringAmount, splitMargin } from '../../src/lib/domain/plan';
+import { buildPlan, coveredDeadlines, forecastAllocation, recurringAmount, splitMargin } from '../../src/lib/domain/plan';
 import { addMonths, billAvailable, billExpectedIn, billReferencePeriod, billShortfall, budgetSpent, dailySpending, dueDebits, pocketPeriodStats, spendingByCategory, splitBill, totalSpending } from '../../src/lib/domain/stats';
 import { buildAdjustment, buildEntry, roundupPreview, roundupTxFor } from '../../src/lib/domain/transactions';
 import { ctx, pockets, recurring, tx } from './fixtures';
@@ -125,11 +125,41 @@ describe('piano di inizio mese', () => {
   });
 
   it('le scadenze sono nella checklist e nei fissi; quelle già coperte no', () => {
-    const dl = (name: string, amount: number) => ({ recurringId: `dl-${name}`, name, fromPocketId: 'main', toPocketId: 'love', amount, target: amount, mode: 'full' as const });
+    const dl = (name: string, amount: number) => ({ recurringId: `dl-${name}`, name, fromPocketId: 'main', toPocketId: 'save', amount, target: amount, mode: 'full' as const });
     const plan = buildPlan({ salary: 234500, recurring, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 6225, deadlines: [dl('Bollo', 3600), dl('Assicurazione', 0)] });
     expect(plan.deadlines.map((l) => l.name)).toEqual(['Bollo']);
     expect(plan.fixedTotal).toBe(135304 + 3600);
     expect(plan.saveable).toBe(99196 - 3600);
+  });
+
+  describe('scadenze accantonate in un pocket con il suo spostamento (Auto 150)', () => {
+    const dl = (name: string, amount: number) => ({ recurringId: `dl-${name}`, name, fromPocketId: 'main', toPocketId: 'car', amount, target: amount, mode: 'full' as const });
+    const planWith = (...deadlines: ReturnType<typeof dl>[]) =>
+      buildPlan({ salary: 234500, recurring, pockets, mainPocketId: 'main', safetyMargin: 0, leftover: 0, deadlines });
+    const car = (p: ReturnType<typeof planWith>) => [...p.revolut, ...p.others].find((l) => l.toPocketId === 'car')!;
+
+    it('scadenze oltre il budget: si sposta la loro somma, non budget + scadenze', () => {
+      const p = planWith(dl('Bollo', 20000), dl('Assicurazione', 10000));
+      expect(car(p).amount).toBe(30000);
+      expect(car(p).base).toBe(15000);
+      expect(p.deadlines).toEqual([]);
+      expect(p.fixedTotal).toBe(135304 + 15000);
+      expect(coveredDeadlines(car(p))).toEqual({ 'dl-Bollo': 20000, 'dl-Assicurazione': 10000 });
+    });
+
+    it('scadenze dentro il budget: resta il budget, che le comprende', () => {
+      const p = planWith(dl('Bollo', 3600), dl('Revisione', 5000));
+      expect(car(p).amount).toBe(15000);
+      expect(car(p).covers?.map((c) => c.name)).toEqual(['Bollo', 'Revisione']);
+      expect(p.fixedTotal).toBe(135304);
+    });
+
+    it('finite le scadenze si torna al budget', () => {
+      const p = planWith(dl('Bollo', 0));
+      expect(car(p).amount).toBe(15000);
+      expect(car(p).covers).toBeUndefined();
+      expect(coveredDeadlines(car(p))).toBeUndefined();
+    });
   });
 
   it('le scadenze accantonate da un altro pocket sono nella checklist ma non si tolgono dallo stipendio', () => {

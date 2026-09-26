@@ -105,6 +105,13 @@
         Stipendio {eur(salary)} → fissi e pocket {eur(plan.fixedTotal)}{plan.marginFromSalary ? ` → margine ${eur(plan.marginFromSalary)}` : ''} → puoi mettere da parte {eur(proposal)}
       </p>
     </section>
+    <p class="c-3 small note">
+      {#if app.savingsTarget && salaryFromPlan}
+        La stima di risparmio è un consiglio: puoi accettarla in fondo alla pagina oppure scegliere tu quando mettere da parte, facendo a mano un giroconto dai Movimenti.
+      {:else}
+        La stima di risparmio è un consiglio: scegli tu quando mettere da parte, facendo a mano un giroconto dai Movimenti.
+      {/if}
+    </p>
 
     {#if plan.auto.length}
       <Card title="Già fatto in automatico">
@@ -117,6 +124,13 @@
           </div>
         {/each}
       </Card>
+    {/if}
+
+    {#if plan.revolut.length || plan.others.length || plan.deadlines.length}
+      <p class="c-2 small note">
+        Indipendentemente da quanto decidi di mettere da parte, segna qui sotto tutti gli spostamenti verso i tuoi pocket.
+        Spuntando una voce non paghi nulla: registri solo la ripartizione.
+      </p>
     {/if}
 
     {#if plan.revolut.length}
@@ -216,6 +230,30 @@
       {/if}
     {/if}
 
+    {#if app.deadlineRecap.length}
+      <Card title="Riepilogo scadenze">
+        {#each app.deadlineRecap as r (r.deadline.id)}
+          {@const d = r.deadline}
+          <div class="dl">
+            <div class="dl-row">
+              <span class="lname">{d.name}</span>
+              <Amount cents={d.amount} />
+            </div>
+            <p class="c-3 small">
+              {Number(d.dueDate.slice(8))} {monthName(Number(d.dueDate.slice(5, 7)))} {d.dueDate.slice(0, 4)} · {r.daysLeft > 1 ? `tra ${r.daysLeft} giorni` : r.daysLeft === 1 ? 'domani' : r.daysLeft === 0 ? 'oggi' : `scaduta da ${-r.daysLeft} giorni`}{r.paydays > 0 && r.missing > 0 ? ` · ${r.paydays} ${r.paydays === 1 ? 'stipendio' : 'stipendi'} per accantonare, questo compreso` : ''}
+            </p>
+            <div class="bar" role="progressbar" aria-label="Accantonato per {d.name}" aria-valuemin={0} aria-valuemax={d.amount} aria-valuenow={r.saved}>
+              <span style:width="{Math.round((r.saved / d.amount) * 100)}%"></span>
+            </div>
+            <p class="small dl-nums">
+              <span>Messi da parte <strong>{eur(r.saved)}</strong></span>
+              <span>{r.missing > 0 ? 'Mancano' : 'Completa'} {#if r.missing > 0}<strong>{eur(r.missing)}</strong>{/if}</span>
+            </p>
+          </div>
+        {/each}
+      </Card>
+    {/if}
+
     <Card>
       <div class="backup">
         <IconTile icon={CloudUpload} color="var(--accent-ink)" />
@@ -245,11 +283,18 @@
         </span>
       {:else if l.mode === 'reserve' && l.taken !== undefined}
         <span class="topup">
-          {#if l.taken === 0}nessun prelievo: metà del budget di {eur(l.target)}{:else if l.taken < l.target}presi {eur(l.taken)} + {eur(l.amount - l.taken)}{:else}reintegra i {eur(l.taken)} presi{/if}
+          {#if l.taken === 0}nessun prelievo: metà del budget di {eur(l.target)}{:else if l.taken < l.target}presi {eur(l.taken)} + {eur((l.base ?? l.amount) - l.taken)}{:else}reintegra i {eur(l.taken)} presi{/if}
         </span>
       {:else if l.dueDate}
         <span class="topup">
           {l.fromPocketId !== app.mainPocket?.id ? `da ${pocket(l.fromPocketId)?.name} ` : ''}su {to?.name} · scade il {Number(l.dueDate.slice(8))} {monthName(Number(l.dueDate.slice(5, 7)))} · {l.paydays === 1 ? 'ultimo stipendio prima della scadenza' : `ancora ${l.paydays} stipendi, questo compreso`}
+        </span>
+      {/if}
+      {#if l.covers && l.base !== undefined}
+        {@const covered = l.covers.reduce((a, c) => a + c.amount, 0)}
+        <span class="topup">
+          {#if covered > l.base}scadenze {eur(covered)} al posto del budget di {eur(l.base)}{:else}budget {eur(l.base)}, comprese le scadenze{/if}:
+          {l.covers.map((c) => `${c.name} ${eur(c.amount)}`).join(', ')}
         </span>
       {/if}
     </span>
@@ -303,6 +348,9 @@
     color: var(--positive);
     font-weight: var(--fw-bold);
     align-items: center;
+  }
+  .note {
+    padding: 0 var(--sp-1);
   }
   .sr-only-sentence {
     margin-top: var(--sp-2);
@@ -366,6 +414,37 @@
   }
   .btn-row {
     margin-top: var(--sp-3);
+  }
+  .dl + .dl {
+    margin-top: var(--sp-3);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--hairline);
+  }
+  .dl-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--sp-3);
+  }
+  .bar {
+    height: 6px;
+    margin: var(--sp-2) 0 var(--sp-1);
+    border-radius: 3px;
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--hairline);
+    overflow: hidden;
+  }
+  .bar span {
+    display: block;
+    height: 100%;
+    background: var(--positive);
+  }
+  .dl-nums {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
   }
   .backup {
     display: flex;

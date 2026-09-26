@@ -31,6 +31,8 @@ export interface EntryInput {
   roundup?: boolean;
   source?: TxSource;
   autoKey?: string;
+  /** Spostamenti del Piano: parte che va a ciascuna scadenza. */
+  deadlines?: Record<Id, Cents>;
 }
 
 export function savingsPocket(pockets: Pocket[]): Pocket | undefined {
@@ -111,6 +113,7 @@ export function buildEntry(input: EntryInput, ctx: Ctx, existing?: Transaction):
     roundup: input.kind === 'expense' ? input.roundup !== false : undefined,
     source: input.source ?? existing?.source ?? 'manual',
     autoKey: input.autoKey ?? existing?.autoKey,
+    deadlines: input.deadlines ?? existing?.deadlines,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };

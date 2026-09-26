@@ -7,8 +7,8 @@ import { addDays, monthName, today, periodOf, shiftPeriod, type Period } from '.
 import { formatCents } from '../domain/money';
 import { buildAdjustment, buildEntry, type Ctx, type EntryInput } from '../domain/transactions';
 import { DEFAULT_SETTINGS, type AppData, type Deadline, type Id, type Recurring, type Settings, type Transaction } from '../domain/types';
-import { buildPlan, type PlanLine } from '../domain/plan';
-import { deadlineInstalment, nextYear } from '../domain/planning';
+import { buildPlan, coveredDeadlines, type PlanLine } from '../domain/plan';
+import { daysBetween, deadlineInstalment, nextYear } from '../domain/planning';
 import { addMonths, billAvailable, billExpectedIn, billReferencePeriod, splitBill } from '../domain/stats';
 import {
   deleteItem, deleteTransaction, getBackupInfo, getMeta, loadAll, openAppDb, pendingChanges, putItem, putTransactions,
@@ -62,12 +62,69 @@ class AppStore {
    * con la checklist negli stipendi precedenti, diviso gli stipendi che restano (questo compreso).
    */
   deadlinePlan(d: Pick<Deadline, 'id' | 'amount' | 'dueDate'>) {
-    const prefix = `plan:${this.deadlineLineId(d)}:`;
-    const current = `${prefix}${this.period.key}`;
-    const saved = this.data.transactions
-      .filter((t) => t.autoKey?.startsWith(prefix) && t.autoKey !== current)
-      .reduce((a, t) => a + (t.legs.find((l) => l.amount > 0)?.amount ?? 0), 0);
+    const { before: saved } = this.deadlineSaved(d);
     return { ...deadlineInstalment(d, this.period, this.data.settings.salaryDay, saved), saved };
+  }
+
+  /**
+   * Quanto è già accantonato per la scadenza: con la sua voce della checklist, o dentro lo
+   * spostamento verso il pocket (spuntato o fatto a mano). `before` = stipendi precedenti,
+   * `now` = in questo periodo.
+   */
+  deadlineSaved(d: Pick<Deadline, 'id' | 'dueDate'>) {
+    const id = this.deadlineLineId(d);
+    const prefix = `plan:${id}:`;
+    let before = 0;
+    let now = 0;
+    for (const t of this.data.transactions) {
+      const part = t.autoKey?.startsWith(prefix) ? (t.legs.find((l) => l.amount > 0)?.amount ?? 0) : (t.deadlines?.[id] ?? 0);
+      if (!part) continue;
+      if (t.date < this.period.start) before += part;
+      else now += part;
+    }
+    return { before, now };
+  }
+
+  /** Riepilogo delle scadenze per il Piano: accantonato finora, quanto manca, tempo che resta. */
+  get deadlineRecap() {
+    return this.deadlines.map((d) => {
+      const { before, now } = this.deadlineSaved(d);
+      const saved = Math.min(d.amount, before + now);
+      const plan = deadlineInstalment(d, this.period, this.data.settings.salaryDay, before);
+      return { deadline: d, saved, missing: d.amount - saved, paydays: plan.paydays, daysLeft: daysBetween(this.today, d.dueDate) };
+    });
+  }
+
+  /**
+   * Spostamento verso un pocket con delle scadenze fatto a mano (dai Movimenti o importato)
+   * invece che spuntando il Piano: si segnano sul giroconto le quote delle scadenze, come con la spunta.
+   * Solo dopo lo stipendio del periodo, e solo se nel giroconto non sono già segnate.
+   */
+  private async recordManualDeadlines(): Promise<void> {
+    const salary = this.salaryTx;
+    if (!salary || !this.data.settings.deadlines?.length) return;
+    const plan = this.planFor(0);
+    const updates: Transaction[] = [];
+    for (const l of [...plan.auto, ...plan.revolut, ...plan.others]) {
+      const covers = coveredDeadlines(l);
+      if (!covers || this.planStatus(l) !== 'manual') continue;
+      const tx = this.data.transactions.find(
+        (t) =>
+          t.kind === 'transfer' && !t.autoKey?.startsWith('plan:') && t.date >= salary.date && t.date <= this.period.end &&
+          t.legs.some((x) => x.pocketId === l.fromPocketId && x.amount < 0) && t.legs.some((x) => x.pocketId === l.toPocketId && x.amount > 0),
+      );
+      if (!tx || Object.keys(covers).every((k) => tx.deadlines?.[k] !== undefined)) continue;
+      // Spostato meno delle quote: si dividono in proporzione, per non contare soldi mai spostati.
+      const moved = tx.legs.find((x) => x.pocketId === l.toPocketId)?.amount ?? 0;
+      const total = Object.values(covers).reduce((a, c) => a + c, 0);
+      const parts = moved >= total ? covers : Object.fromEntries(Object.entries(covers).map(([k, c]) => [k, Math.floor((c * moved) / total)]));
+      updates.push({ ...($state.snapshot(tx) as Transaction), deadlines: { ...tx.deadlines, ...parts } });
+    }
+    if (!updates.length) return;
+    await putTransactions(this.db!, updates);
+    const [data, info] = await Promise.all([loadAll(this.db!), getBackupInfo(this.db!)]);
+    this.data = data;
+    this.backupInfo = info;
   }
 
   /** Righe "Scadenze" della checklist del Piano: fino all'ultimo stipendio prima del pagamento. */
@@ -295,6 +352,7 @@ class AppStore {
     const [data, info] = await Promise.all([loadAll(db), getBackupInfo(db)]);
     this.data = data;
     this.backupInfo = info;
+    await this.recordManualDeadlines();
   }
 
   async requestPersistence(): Promise<boolean> {
@@ -427,7 +485,8 @@ class AppStore {
     const prev = shiftPeriod(this.period, -1, this.data.settings.salaryDay);
     const takenPrev = new Map<Id, number>();
     for (const t of this.data.transactions) {
-      if (t.kind === 'adjustment' || t.date < prev.start || t.date > prev.end) continue;
+      // Il pagamento di una scadenza era già accantonato: non va reintegrato dalle riserve.
+      if (t.kind === 'adjustment' || t.autoKey?.startsWith('deadline:') || t.date < prev.start || t.date > prev.end) continue;
       for (const l of t.legs) if (l.amount < 0) takenPrev.set(l.pocketId, (takenPrev.get(l.pocketId) ?? 0) - l.amount);
     }
     return buildPlan({
@@ -453,7 +512,7 @@ class AppStore {
     const plan = this.planFor(amount);
     for (const l of plan.auto) {
       if (!l.toPocketId || l.amount <= 0) continue;
-      txs.push(buildEntry({ kind: 'transfer', date, amount: l.amount, fromPocketId: l.fromPocketId, splits: [{ pocketId: l.toPocketId, amount: l.amount }], description: l.name, categoryId: 'sys-transfer', source: 'plan', autoKey: `plan:${l.recurringId}:${key}` }, ctx));
+      txs.push(buildEntry({ kind: 'transfer', date, amount: l.amount, fromPocketId: l.fromPocketId, splits: [{ pocketId: l.toPocketId, amount: l.amount }], description: l.name, categoryId: 'sys-transfer', source: 'plan', autoKey: `plan:${l.recurringId}:${key}`, deadlines: coveredDeadlines(l) }, ctx));
     }
     // Garantisce l'ordine: stipendio prima degli spostamenti.
     txs.forEach((t, i) => (t.createdAt += i));
@@ -469,14 +528,14 @@ class AppStore {
   }
 
   /** Spunta/de-spunta una voce della checklist: registra o elimina il giroconto. */
-  async togglePlanTransfer(line: { recurringId: Id; name: string; fromPocketId: Id; toPocketId?: Id; amount: number }, date: string): Promise<void> {
+  async togglePlanTransfer(line: PlanLine, date: string): Promise<void> {
     const key = `plan:${line.recurringId}:${this.period.key}`;
     // Già fatto con un giroconto importato o manuale: non si duplica.
     if (this.planStatus(line) === 'manual') return;
     const existing = this.txByKey(key);
     if (existing) return this.deleteTx(existing.id, `${line.name}: spostamento annullato`);
     if (!line.toPocketId || line.amount <= 0) return;
-    await this.saveEntry({ kind: 'transfer', date, amount: line.amount, fromPocketId: line.fromPocketId, splits: [{ pocketId: line.toPocketId, amount: line.amount }], description: line.name, categoryId: 'sys-transfer', source: 'plan', autoKey: key });
+    await this.saveEntry({ kind: 'transfer', date, amount: line.amount, fromPocketId: line.fromPocketId, splits: [{ pocketId: line.toPocketId, amount: line.amount }], description: line.name, categoryId: 'sys-transfer', source: 'plan', autoKey: key, deadlines: coveredDeadlines(line) });
   }
 
   // ── Configurazione ──

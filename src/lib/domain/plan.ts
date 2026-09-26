@@ -23,6 +23,17 @@ export interface PlanLine {
   /** Scadenza: data del pagamento e stipendi che restano per accantonare (questo compreso). */
   dueDate?: ISODate;
   paydays?: number;
+  /**
+   * Spostamento verso un pocket in cui si accantonano anche delle scadenze: le loro quote
+   * e l'importo che avrebbe avuto senza (il budget del pocket).
+   */
+  covers?: PlanLine[];
+  base?: Cents;
+}
+
+/** Quanto di uno spostamento va a ciascuna scadenza che contiene (da salvare nel giroconto). */
+export function coveredDeadlines(l: Pick<PlanLine, 'covers'>): Record<Id, Cents> | undefined {
+  return l.covers?.length ? Object.fromEntries(l.covers.map((c) => [c.recurringId, c.amount])) : undefined;
 }
 
 export type AllocationMode = NonNullable<Recurring['mode']> | 'full';
@@ -151,7 +162,22 @@ export function buildPlan(input: {
     .filter((r) => (r.kind === 'budget' || (r.kind === 'debit' && !r.toPocketId)) && r.fromPocketId === mainPocketId)
     .map(line);
 
-  const deadlines = (input.deadlines ?? []).filter((l) => l.amount > 0);
+  // Scadenze accantonate in un pocket che ha già il suo spostamento (es. Auto 150): si sposta
+  // il più alto tra il budget del pocket e la somma delle scadenze, senza sommarli. Finite le
+  // scadenze si torna al budget.
+  const deadlines: PlanLine[] = [];
+  const moves = [...auto, ...revolut, ...others];
+  for (const d of input.deadlines ?? []) {
+    if (d.amount <= 0) continue;
+    const host = moves.find((l) => l.fromPocketId === d.fromPocketId && l.toPocketId === d.toPocketId);
+    if (host) (host.covers ??= []).push(d);
+    else deadlines.push(d);
+  }
+  for (const l of moves) {
+    if (!l.covers) continue;
+    l.base = l.amount;
+    l.amount = Math.max(l.amount, l.covers.reduce((a, c) => a + c.amount, 0));
+  }
   // Dallo stipendio si tolgono solo le scadenze accantonate dal conto principale.
   const fromSalary = deadlines.filter((l) => l.fromPocketId === mainPocketId);
 

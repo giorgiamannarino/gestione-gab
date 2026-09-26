@@ -462,6 +462,56 @@ test('importi con i decimali: scadenze, spese fisse, errori chiari', async ({ pa
   await expect(page.getByRole('button', { name: /Palestra/ })).toContainText(/34,90\s€/);
 });
 
+test('scadenze su Auto: lo spostamento verso Auto diventa la loro somma, non budget + scadenze', async ({ page }) => {
+  await restoreExample(page);
+  await page.getByRole('button', { name: 'Impostazioni' }).click();
+  await page.getByRole('button', { name: /Spese fisse/ }).click();
+  const sheet = page.locator('dialog[open]');
+  // 600 € al 10 gennaio → 3 stipendi → 200 €; 450 € al 10 marzo → 5 stipendi → 90 €. Totale 290 € > budget.
+  for (const [name, amount, date] of [['Gomme', '600', '2031-01-10'], ['Assicurazione auto', '450', '2031-03-10']] as const) {
+    await page.getByRole('button', { name: 'Aggiungi una scadenza' }).click();
+    await sheet.getByLabel('Nome').fill(name);
+    await sheet.getByLabel('Importo').fill(amount);
+    await sheet.getByLabel('Data della scadenza').fill(date);
+    await sheet.getByRole('button', { name: 'Auto', exact: true }).first().click();
+    await sheet.getByRole('button', { name: 'Salva', exact: true }).click();
+    await expect(sheet).toHaveCount(0);
+  }
+  await page.getByRole('button', { name: 'Indietro' }).click();
+  await page.getByRole('button', { name: 'Torna alla Home' }).click();
+  await page.getByRole('button', { name: 'Piano', exact: true }).click();
+  await page.getByLabel('Stipendio').fill('2.345');
+  await page.getByRole('button', { name: 'Registra stipendio' }).click();
+
+  await expect(page.getByText(/La stima di risparmio è un consiglio: puoi accettarla in fondo alla pagina/)).toBeVisible();
+  await expect(page.getByText(/Spuntando una voce non paghi nulla: registri solo la ripartizione/)).toBeVisible();
+
+  // Una sola riga verso Auto, niente righe separate in Scadenze.
+  const auto = page.getByRole('checkbox', { name: /^Auto/ });
+  await expect(auto).toContainText(/scadenze 290,00\s€ al posto del budget di/);
+  await expect(auto).toContainText(/Gomme 200,00\s€, Assicurazione auto 90,00\s€/);
+  await expect(page.getByRole('heading', { name: 'Scadenze', exact: true })).toHaveCount(0);
+  // Riepilogo in fondo: nulla ancora messo da parte.
+  const recap = page.locator('.dl').filter({ hasText: 'Gomme' });
+  await expect(recap).toContainText(/10 gennaio 2031 · tra 74 giorni · 3 stipendi/);
+  await expect(recap).toContainText(/Messi da parte 0,00\s€/);
+  await expect(recap).toContainText(/Mancano 600,00\s€/);
+
+  // Giroconto fatto a mano dai Movimenti invece della spunta: la voce risulta fatta
+  // e le quote delle scadenze vengono contate come messe da parte.
+  await page.getByRole('button', { name: 'Nuovo movimento' }).click();
+  const qa = page.getByRole('dialog');
+  await qa.getByRole('radio', { name: 'Giroconto' }).click();
+  await qa.getByRole('button', { name: 'Conto', exact: true }).first().click();
+  await qa.getByRole('button', { name: 'Auto', exact: true }).last().click();
+  for (const k of ['2', '9', '0']) await qa.getByRole('group', { name: 'Tastierino numerico' }).getByRole('button', { name: k, exact: true }).click();
+  await qa.getByRole('button', { name: 'Salva', exact: true }).click();
+  await expect(auto).toHaveAttribute('aria-checked', 'true');
+  await expect(recap).toContainText(/Messi da parte 200,00\s€/);
+  await expect(recap).toContainText(/Mancano 400,00\s€/);
+  await expect(page.locator('.dl').filter({ hasText: 'Assicurazione auto' })).toContainText(/Messi da parte 90,00\s€/);
+});
+
 test('blocco con PIN', async ({ page }) => {
   await restoreExample(page);
   await page.getByRole('button', { name: 'Impostazioni' }).click();

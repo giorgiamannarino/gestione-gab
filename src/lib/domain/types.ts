@@ -52,6 +52,8 @@ export interface Transaction {
   tag?: string;
   /** Solo uscite da pocket Revolut: se false l'arrotondamento è disattivato. */
   roundup?: boolean;
+  /** Spostamenti del Piano: quanto va a ciascuna scadenza accantonata nel pocket (id voce → centesimi). */
+  deadlines?: Record<Id, Cents>;
   /** Per gli arrotondamenti: l'uscita che li ha generati. */
   parentId?: Id;
   source: TxSource;

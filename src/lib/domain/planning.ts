@@ -5,7 +5,7 @@ import { addDays, parseISODate, shiftPeriod, type Period } from './dates';
 import type { Cents } from './money';
 import type { Deadline, ISODate, Transaction } from './types';
 
-function daysBetween(a: ISODate, b: ISODate): number {
+export function daysBetween(a: ISODate, b: ISODate): number {
   const x = parseISODate(a);
   const y = parseISODate(b);
   return Math.round((Date.UTC(y.y, y.m - 1, y.d) - Date.UTC(x.y, x.m - 1, x.d)) / 86_400_000);
