@@ -497,19 +497,51 @@ test('scadenze su Auto: lo spostamento verso Auto diventa la loro somma, non bud
   await expect(recap).toContainText(/Messi da parte 0,00\s€/);
   await expect(recap).toContainText(/Mancano 600,00\s€/);
 
-  // Giroconto fatto a mano dai Movimenti invece della spunta: la voce risulta fatta
-  // e le quote delle scadenze vengono contate come messe da parte.
-  await page.getByRole('button', { name: 'Nuovo movimento' }).click();
-  const qa = page.getByRole('dialog');
-  await qa.getByRole('radio', { name: 'Giroconto' }).click();
-  await qa.getByRole('button', { name: 'Conto', exact: true }).first().click();
-  await qa.getByRole('button', { name: 'Auto', exact: true }).last().click();
-  for (const k of ['2', '9', '0']) await qa.getByRole('group', { name: 'Tastierino numerico' }).getByRole('button', { name: k, exact: true }).click();
-  await qa.getByRole('button', { name: 'Salva', exact: true }).click();
+  const assic = page.locator('.dl').filter({ hasText: 'Assicurazione auto' });
+  const giroconto = async (digits: string[]) => {
+    await page.getByRole('button', { name: 'Nuovo movimento' }).click();
+    const qa = page.getByRole('dialog');
+    await qa.getByRole('radio', { name: 'Giroconto' }).click();
+    await qa.getByRole('button', { name: 'Conto', exact: true }).first().click();
+    await qa.getByRole('button', { name: 'Auto', exact: true }).last().click();
+    for (const k of digits) await qa.getByRole('group', { name: 'Tastierino numerico' }).getByRole('button', { name: k, exact: true }).click();
+    await qa.getByRole('button', { name: 'Salva', exact: true }).click();
+    await expect(qa).toHaveCount(0);
+  };
+
+  // Giroconto a mano di soli 150 €: non basta, la voce resta da completare e nulla va alle scadenze.
+  await giroconto(['1', '5', '0']);
+  await expect(auto).toHaveAttribute('aria-checked', 'false');
+  await expect(auto).toContainText(/già spostati 150,00\s€ con un giroconto: spunta per spostare i 140,00\s€ che mancano/);
+  await expect(recap).toContainText(/Messi da parte 0,00\s€/);
+
+  // La spunta sposta solo i 140 € che mancano; le quote vanno alle scadenze.
+  await auto.click();
   await expect(auto).toHaveAttribute('aria-checked', 'true');
+  await expect(auto).toContainText(/150,00\s€ con un giroconto \+ 140,00\s€ con la spunta/);
   await expect(recap).toContainText(/Messi da parte 200,00\s€/);
   await expect(recap).toContainText(/Mancano 400,00\s€/);
-  await expect(page.locator('.dl').filter({ hasText: 'Assicurazione auto' })).toContainText(/Messi da parte 90,00\s€/);
+  await expect(assic).toContainText(/Messi da parte 90,00\s€/);
+
+  // Togliendo la spunta si annulla solo il giroconto della spunta.
+  await auto.click();
+  await expect(auto).toHaveAttribute('aria-checked', 'false');
+  await expect(recap).toContainText(/Messi da parte 0,00\s€/);
+
+  // Altri 140 € a mano: ora il giroconto copre tutto, la voce è fatta e le quote si contano.
+  await giroconto(['1', '4', '0']);
+  await expect(auto).toHaveAttribute('aria-checked', 'true');
+  await expect(auto).toContainText('fatto con un giroconto dai Movimenti');
+  await expect(recap).toContainText(/Messi da parte 200,00\s€/);
+
+  // Anche una voce fatta con un giroconto si può togliere: il giroconto resta, ma non conta.
+  await auto.click();
+  await expect(auto).toHaveAttribute('aria-checked', 'false');
+  await expect(auto).toContainText('il giroconto dai Movimenti non conta per questa voce');
+  await expect(recap).toContainText(/Messi da parte 0,00\s€/);
+  await auto.click();
+  await expect(auto).toHaveAttribute('aria-checked', 'true');
+  await expect(recap).toContainText(/Messi da parte 200,00\s€/);
 });
 
 test('blocco con PIN', async ({ page }) => {

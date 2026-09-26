@@ -24,10 +24,15 @@
   const salary = $derived(salaryTx ? salaryTx.legs.reduce((a, l) => a + l.amount, 0) : 0);
   const plan = $derived(app.planFor(salary));
   const pocket = (id?: Id) => app.data.pockets.find((p) => p.id === id);
-  const status = (l: { recurringId: Id; fromPocketId: Id; toPocketId?: Id }) => app.planStatus(l);
+  const status = (l: PlanLine) => app.planStatus(l);
+  // Fatta: spuntata o fatta per intero con un giroconto. "partial" resta da completare.
+  const isDone = (l: PlanLine) => {
+    const st = status(l);
+    return st === 'auto' || st === 'manual';
+  };
   const done = (recurringId: Id) => {
     const l = [...plan.revolut, ...plan.others, ...plan.deadlines].find((x) => x.recurringId === recurringId);
-    return l ? !!status(l) : !!app.txByKey(`plan:${recurringId}:${key}`);
+    return l ? isDone(l) : !!app.txByKey(`plan:${recurringId}:${key}`);
   };
 
   let salaryInput = $state('');
@@ -43,7 +48,7 @@
     // l'accantonamento di questo mese è per le bollette seguenti e non si conta.
     const fund = bill.available;
     const line = plan.others.find((l) => l.toPocketId === billsPocket.id);
-    const allocation = !bill.late && line && !app.planStatus(line) ? line.amount : 0; // se già spostato è già nel fondo
+    const allocation = !bill.late && line && !isDone(line) ? line.amount : 0; // se già spostato è già nel fondo
     return { estimate: bill.estimate, fund, allocation, late: bill.late, shortfall: billShortfall(fund, allocation, bill.estimate) };
   });
   const proposal = $derived(plan.saveable);
@@ -270,9 +275,10 @@
 {#snippet check(l: PlanLine)}
   {@const st = status(l)}
   {@const full = l.mode === 'topUp' && l.amount === 0}
-  {@const ok = !!st || full}
+  {@const ok = st === 'auto' || st === 'manual' || full}
+  {@const moved = st === 'partial' || (st === 'auto' && l.covers) ? app.planMoved(l).manualAmount : 0}
   {@const to = pocket(l.toPocketId)}
-  <button class="line check" class:ok disabled={st === 'manual' || full} title={st === 'manual' ? 'Già registrato con un giroconto' : undefined} onclick={() => app.togglePlanTransfer(l, app.today)} role="checkbox" aria-checked={ok}>
+  <button class="line check" class:ok disabled={full} onclick={() => app.togglePlanTransfer(l, app.today)} role="checkbox" aria-checked={ok}>
     <span class="tick" class:on={ok} aria-hidden="true">{#if ok}<Check size={14} strokeWidth={3} />{/if}</span>
     {#if to}<IconTile icon={icon(to.icon)} color={color(to.color)} size="sm" />{/if}
     <span class="lname">
@@ -296,6 +302,15 @@
           {#if covered > l.base}scadenze {eur(covered)} al posto del budget di {eur(l.base)}{:else}budget {eur(l.base)}, comprese le scadenze{/if}:
           {l.covers.map((c) => `${c.name} ${eur(c.amount)}`).join(', ')}
         </span>
+      {/if}
+      {#if st === 'manual'}
+        <span class="topup">fatto con un giroconto dai Movimenti</span>
+      {:else if st === 'ignored'}
+        <span class="topup">il giroconto dai Movimenti non conta per questa voce: spunta per contarlo di nuovo</span>
+      {:else if st === 'partial'}
+        <span class="topup warn">già spostati {eur(moved)} con un giroconto: spunta per spostare i {eur(l.amount - moved)} che mancano</span>
+      {:else if moved > 0}
+        <span class="topup">{eur(moved)} con un giroconto + {eur(l.amount - moved)} con la spunta</span>
       {/if}
     </span>
     <Amount cents={l.amount} tone={ok ? 'muted' : 'default'} />
@@ -373,6 +388,10 @@
   .check.ok .lname {
     color: var(--text-3);
     text-decoration: line-through;
+  }
+  .topup.warn {
+    color: var(--warning, var(--text-2));
+    font-weight: var(--fw-medium);
   }
   .topup {
     display: block;

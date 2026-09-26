@@ -135,6 +135,11 @@ export interface Settings {
   eveningReminder?: boolean;
   /** Pocket per "Oggi puoi spendere" (default: quello chiamato "Personale"). "none" = spento. */
   dailyPocketId?: Id | 'none';
+  /**
+   * Voci del Piano tolte a mano anche se c'è un giroconto dai Movimenti ("idVoce:periodo"):
+   * quel giroconto non conta per la voce. Si tengono solo quelle del periodo in corso.
+   */
+  planIgnored?: string[];
   /** Scadenze annuali o una tantum (bollo, assicurazione, università…). */
   deadlines?: Deadline[];
 }

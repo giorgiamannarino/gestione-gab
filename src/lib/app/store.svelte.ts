@@ -61,23 +61,26 @@ class AppStore {
    * Accantonamento della scadenza a questo stipendio: quanto manca, tolto quello già spostato
    * con la checklist negli stipendi precedenti, diviso gli stipendi che restano (questo compreso).
    */
-  deadlinePlan(d: Pick<Deadline, 'id' | 'amount' | 'dueDate'>) {
+  deadlinePlan(d: Pick<Deadline, 'id' | 'amount' | 'dueDate' | 'pocketId'>) {
     const { before: saved } = this.deadlineSaved(d);
     return { ...deadlineInstalment(d, this.period, this.data.settings.salaryDay, saved), saved };
   }
 
   /**
    * Quanto è già accantonato per la scadenza: con la sua voce della checklist, o dentro lo
-   * spostamento verso il pocket (spuntato o fatto a mano). `before` = stipendi precedenti,
-   * `now` = in questo periodo.
+   * spostamento verso il pocket (spuntato o fatto a mano). Conta solo quanto è arrivato nel
+   * pocket della scadenza. `before` = stipendi precedenti, `now` = in questo periodo.
    */
-  deadlineSaved(d: Pick<Deadline, 'id' | 'dueDate'>) {
+  deadlineSaved(d: Pick<Deadline, 'id' | 'dueDate' | 'pocketId'>) {
     const id = this.deadlineLineId(d);
     const prefix = `plan:${id}:`;
     let before = 0;
     let now = 0;
     for (const t of this.data.transactions) {
-      const part = t.autoKey?.startsWith(prefix) ? (t.legs.find((l) => l.amount > 0)?.amount ?? 0) : (t.deadlines?.[id] ?? 0);
+      const into = t.legs.find((l) => l.pocketId === d.pocketId && l.amount > 0)?.amount ?? 0;
+      if (!into) continue;
+      // Il giroconto della spunta può spostare solo il resto di un giroconto a mano, ma porta le quote di tutta la voce.
+      const part = t.autoKey?.startsWith(prefix) ? into : (t.deadlines?.[id] ?? 0);
       if (!part) continue;
       if (t.date < this.period.start) before += part;
       else now += part;
@@ -97,31 +100,32 @@ class AppStore {
 
   /**
    * Spostamento verso un pocket con delle scadenze fatto a mano (dai Movimenti o importato)
-   * invece che spuntando il Piano: si segnano sul giroconto le quote delle scadenze, come con la spunta.
-   * Solo dopo lo stipendio del periodo, e solo se nel giroconto non sono già segnate.
+   * invece che spuntando il Piano: quando copre tutta la voce, le quote delle scadenze si segnano
+   * sull'ultimo di quei giroconti, come con la spunta. Se è solo una parte non si segna nulla:
+   * la voce resta da completare. Si ricalcola a ogni caricamento, solo per il periodo in corso.
    */
-  private async recordManualDeadlines(): Promise<void> {
+  private async syncManualDeadlines(): Promise<void> {
     const salary = this.salaryTx;
     if (!salary || !this.data.settings.deadlines?.length) return;
     const plan = this.planFor(0);
-    const updates: Transaction[] = [];
+    const updates = new Map<Id, Transaction>();
     for (const l of [...plan.auto, ...plan.revolut, ...plan.others]) {
       const covers = coveredDeadlines(l);
-      if (!covers || this.planStatus(l) !== 'manual') continue;
-      const tx = this.data.transactions.find(
-        (t) =>
-          t.kind === 'transfer' && !t.autoKey?.startsWith('plan:') && t.date >= salary.date && t.date <= this.period.end &&
-          t.legs.some((x) => x.pocketId === l.fromPocketId && x.amount < 0) && t.legs.some((x) => x.pocketId === l.toPocketId && x.amount > 0),
-      );
-      if (!tx || Object.keys(covers).every((k) => tx.deadlines?.[k] !== undefined)) continue;
-      // Spostato meno delle quote: si dividono in proporzione, per non contare soldi mai spostati.
-      const moved = tx.legs.find((x) => x.pocketId === l.toPocketId)?.amount ?? 0;
-      const total = Object.values(covers).reduce((a, c) => a + c, 0);
-      const parts = moved >= total ? covers : Object.fromEntries(Object.entries(covers).map(([k, c]) => [k, Math.floor((c * moved) / total)]));
-      updates.push({ ...($state.snapshot(tx) as Transaction), deadlines: { ...tx.deadlines, ...parts } });
+      if (!covers) continue;
+      const { planTx, manual, manualAmount, found } = this.planMoved(l);
+      const holder = !planTx && manual.length && manualAmount >= l.amount ? manual.filter((t) => t.date >= salary.date).at(-1) : undefined;
+      // Anche i giroconti di una voce con la spunta tolta: lì le quote vanno ripulite.
+      for (const t of found) {
+        const cur = updates.get(t.id) ?? t;
+        const next = { ...(cur.deadlines ?? {}) };
+        for (const k of Object.keys(covers)) delete next[k];
+        if (t === holder) Object.assign(next, covers);
+        const same = JSON.stringify(Object.entries(next).sort()) === JSON.stringify(Object.entries(cur.deadlines ?? {}).sort());
+        if (!same) updates.set(t.id, { ...($state.snapshot(cur) as Transaction), deadlines: Object.keys(next).length ? next : undefined });
+      }
     }
-    if (!updates.length) return;
-    await putTransactions(this.db!, updates);
+    if (!updates.size) return;
+    await putTransactions(this.db!, [...updates.values()]);
     const [data, info] = await Promise.all([loadAll(this.db!), getBackupInfo(this.db!)]);
     this.data = data;
     this.backupInfo = info;
@@ -352,7 +356,7 @@ class AppStore {
     const [data, info] = await Promise.all([loadAll(db), getBackupInfo(db)]);
     this.data = data;
     this.backupInfo = info;
-    await this.recordManualDeadlines();
+    await this.syncManualDeadlines();
   }
 
   async requestPersistence(): Promise<boolean> {
@@ -456,23 +460,57 @@ class AppStore {
   }
 
   /**
-   * Una voce del piano è fatta se c'è il suo giroconto automatico, oppure un giroconto
-   * nel periodo (anche importato o manuale) dallo stesso pocket verso quello di destinazione.
+   * Cosa è già stato spostato nel periodo per una voce del piano: il suo giroconto (spunta) e i
+   * giroconti fatti a mano o importati dallo stesso pocket verso quello di destinazione.
    */
-  planStatus(line: { recurringId: Id; fromPocketId: Id; toPocketId?: Id }): 'auto' | 'manual' | null {
-    if (this.txByKey(`plan:${line.recurringId}:${this.period.key}`)) return 'auto';
-    // Scadenze: il pocket di accantonamento riceve anche altro (es. i risparmi), un giroconto qualsiasi non basta.
-    if (line.recurringId.startsWith('dl-')) return null;
-    const found = this.data.transactions.some(
-      (t) =>
-        t.kind === 'transfer' &&
-        !t.autoKey?.startsWith('plan:') &&
-        t.date >= this.period.start &&
-        t.date <= this.period.end &&
-        t.legs.some((l) => l.pocketId === line.fromPocketId && l.amount < 0) &&
-        t.legs.some((l) => l.pocketId === line.toPocketId && l.amount > 0),
-    );
-    return found ? 'manual' : null;
+  planMoved(line: Pick<PlanLine, 'recurringId' | 'fromPocketId' | 'toPocketId'>) {
+    const planTx = this.txByKey(`plan:${line.recurringId}:${this.period.key}`);
+    const manual = this.data.transactions
+      .filter(
+        (t) =>
+          t.kind === 'transfer' &&
+          !t.autoKey?.startsWith('plan:') &&
+          t.date >= this.period.start &&
+          t.date <= this.period.end &&
+          t.legs.some((l) => l.pocketId === line.fromPocketId && l.amount < 0) &&
+          t.legs.some((l) => l.pocketId === line.toPocketId && l.amount > 0),
+      )
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.createdAt - b.createdAt));
+    // Spunta tolta a mano: i giroconti dai Movimenti non contano per questa voce.
+    if (this.planIgnored(line)) return { planTx, manual: [], manualAmount: 0, ignored: manual.length > 0, found: manual };
+    const manualAmount = manual.reduce((a, t) => a + (t.legs.find((l) => l.pocketId === line.toPocketId && l.amount > 0)?.amount ?? 0), 0);
+    return { planTx, manual, manualAmount, ignored: false, found: manual };
+  }
+
+  private planIgnoreKey(line: Pick<PlanLine, 'recurringId'>) {
+    return `${line.recurringId}:${this.period.key}`;
+  }
+
+  planIgnored(line: Pick<PlanLine, 'recurringId'>): boolean {
+    return this.data.settings.planIgnored?.includes(this.planIgnoreKey(line)) ?? false;
+  }
+
+  /** Toglie o rimette la spunta a una voce fatta con un giroconto dai Movimenti, senza toccare il giroconto. */
+  private async setPlanIgnored(line: Pick<PlanLine, 'recurringId'>, ignored: boolean): Promise<void> {
+    const key = this.planIgnoreKey(line);
+    const current = (this.data.settings.planIgnored ?? []).filter((k) => k.endsWith(`:${this.period.key}`) && k !== key);
+    await this.updateSettings({ planIgnored: ignored ? [...current, key] : current });
+  }
+
+  /**
+   * Stato di una voce del piano:
+   * - auto: spuntata (c'è il suo giroconto);
+   * - manual: fatta con un giroconto dai Movimenti o importato;
+   * - partial: con dentro delle scadenze, il giroconto a mano non basta: la spunta sposta il resto;
+   * - ignored: c'è un giroconto dai Movimenti ma la spunta è stata tolta.
+   */
+  planStatus(line: Pick<PlanLine, 'recurringId' | 'fromPocketId' | 'toPocketId' | 'amount' | 'covers'>): 'auto' | 'manual' | 'partial' | 'ignored' | null {
+    // Scadenze da sole: il pocket di accantonamento riceve anche altro (es. i risparmi), un giroconto qualsiasi non basta.
+    const { planTx, manual, manualAmount, ignored } = this.planMoved(line);
+    if (planTx) return 'auto';
+    if (ignored) return 'ignored';
+    if (line.recurringId.startsWith('dl-') || !manual.length) return null;
+    return line.covers?.length && manualAmount < line.amount ? 'partial' : 'manual';
   }
 
   planFor(salary: number) {
@@ -530,12 +568,16 @@ class AppStore {
   /** Spunta/de-spunta una voce della checklist: registra o elimina il giroconto. */
   async togglePlanTransfer(line: PlanLine, date: string): Promise<void> {
     const key = `plan:${line.recurringId}:${this.period.key}`;
-    // Già fatto con un giroconto importato o manuale: non si duplica.
-    if (this.planStatus(line) === 'manual') return;
+    const status = this.planStatus(line);
+    // Fatto con un giroconto dai Movimenti: togliere o rimettere la spunta non crea né cancella giroconti.
+    if (status === 'manual') return this.setPlanIgnored(line, true);
+    if (status === 'ignored') return this.setPlanIgnored(line, false);
     const existing = this.txByKey(key);
     if (existing) return this.deleteTx(existing.id, `${line.name}: spostamento annullato`);
-    if (!line.toPocketId || line.amount <= 0) return;
-    await this.saveEntry({ kind: 'transfer', date, amount: line.amount, fromPocketId: line.fromPocketId, splits: [{ pocketId: line.toPocketId, amount: line.amount }], description: line.name, categoryId: 'sys-transfer', source: 'plan', autoKey: key, deadlines: coveredDeadlines(line) });
+    // Già spostata una parte a mano: si sposta solo il resto (le quote delle scadenze vanno tutte su questo giroconto).
+    const amount = line.amount - (status === 'partial' ? this.planMoved(line).manualAmount : 0);
+    if (!line.toPocketId || amount <= 0) return;
+    await this.saveEntry({ kind: 'transfer', date, amount, fromPocketId: line.fromPocketId, splits: [{ pocketId: line.toPocketId, amount }], description: line.name, categoryId: 'sys-transfer', source: 'plan', autoKey: key, deadlines: coveredDeadlines(line) });
   }
 
   // ── Configurazione ──
