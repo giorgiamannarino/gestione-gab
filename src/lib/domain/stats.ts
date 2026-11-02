@@ -1,6 +1,6 @@
 /** Statistiche di spesa per periodo. Rettifiche, giroconti e arrotondamenti non sono spese. */
 import type { Cents } from './money';
-import { inPeriod, periodOf, type Period } from './dates';
+import { addDays, inPeriod, periodOf, type Period } from './dates';
 import type { Category, Id, ISODate, Recurring, Transaction } from './types';
 
 function isSpending(tx: Transaction, excluded: Set<Id>): boolean {
@@ -83,12 +83,14 @@ export function billExpectedIn(bill: { month: string; period?: string }, p: Peri
 }
 
 /**
- * Periodo di riferimento di una bolletta del mese `month`: quello in cui era attesa.
- * I soldi entrati nel fondo fino alla sua fine sono per questa bolletta; quelli dopo
- * (accantonamenti dei periodi successivi) sono per le bollette seguenti.
+ * Periodo di riferimento di una bolletta del mese `month`: quello che inizia in quel mese
+ * (con lo stipendio del 23, la bolletta di ottobre va col periodo 23 ott – 22 nov).
+ * I soldi entrati nel fondo fino alla sua fine sono per questa bolletta, compreso
+ * l'accantonamento di quel mese; quelli dopo sono per le bollette seguenti.
  */
 export function billReferencePeriod(month: string, salaryDay: number): Period {
-  return periodOf(`${month}-01`, salaryDay);
+  // L'ultimo giorno del mese cade sempre nel periodo iniziato in quel mese.
+  return periodOf(addDays(`${addMonths(month, 1)}-01`, -1), salaryDay);
 }
 
 /** Soldi del fondo che spettano alla bolletta: al massimo quanto c'era a fine periodo di riferimento. */

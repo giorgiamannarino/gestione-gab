@@ -281,7 +281,10 @@ describe('bollette', () => {
   });
 
   it('i soldi per una bolletta sono quelli messi da parte fino al suo periodo', () => {
-    expect(billReferencePeriod('2030-11', 23)).toMatchObject({ start: '2030-10-23', end: '2030-11-22' });
+    // Bolletta di novembre: conta anche l'accantonamento del 23 novembre.
+    expect(billReferencePeriod('2030-11', 23)).toMatchObject({ start: '2030-11-23', end: '2030-12-22' });
+    expect(billReferencePeriod('2030-11', 1)).toMatchObject({ start: '2030-11-01', end: '2030-11-30' });
+    expect(billReferencePeriod('2031-02', 31)).toMatchObject({ key: '2031-02' });
     // Uscita in ritardo: nel fondo ora ci sono 420 (320 + 100 del mese nuovo) ma alla bolletta ne spettano 320.
     expect(billAvailable(42000, 32000)).toBe(32000);
     // Uscita in tempo: tutto il fondo attuale.
